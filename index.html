@@ -100,10 +100,24 @@ opacity: 1;
 
 }
 
+
 /* Hide scrollbars on mobile */
 @media (max-width: 768px) {
 .hide-scrollbar::-webkit-scrollbar {
 display: none;
+}
+    .editor-container .border-t .text-xs {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem!important;
+        margin-right: 0.5rem!important;
+    }
+	
+#toggleNotesPanel{
+ margin-bottom: 45px;
+}
+#mobileFab{
+ margin-bottom: 45px;
 }
 
 .hide-scrollbar {
@@ -223,7 +237,18 @@ transition: opacity 0.3s ease;
 opacity: 1;
 pointer-events: auto;
 }
-
+#settingsBtn{
+	background: #04d4d00;
+}
+#deleteNoteBtn{
+    background: #e0e0e06e;
+    color: rgb(149 144 239);
+    padding: 0px 7px;
+    border-radius: 25px;
+    font-size: 10px;
+    margin-left: -15px;
+    position: absolute;
+}
 .delete-modal-content {
 background: white;
 border-radius: 16px;
@@ -467,11 +492,11 @@ Delete
 
 <div class="flex items-center space-x-2 ml-auto">
 <button id="decreaseFontBtn" class="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
-<i data-feather="minus" class="w- h-6 "></i>
+<i data-feather="minus" class="w-6 h-6 "></i>
 </button>
 <span id="fontSizeDisplay" class="text-lg text-gray-500">14px</span>
 <button id="increaseFontBtn" class="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
-<i data-feather="plus" class="w-3 h-3"></i>
+<i data-feather="plus" class="w-6 h-6"></i>
 </button>
 </div>
 </div>
@@ -806,7 +831,565 @@ clearAllConfirm: 'Czy na pewno chcesz usunąć wszystkie notatki? Tej akcji nie 
 }
 }
 };
+// ============================================
+// TEXT CONTROLS VISIBILITY MANAGEMENT
+// ============================================
 
+class TextControlsManager {
+    constructor() {
+        this.textControls = document.querySelector('.text-controls');
+        this.editorContainer = document.querySelector('.editor-container');
+        this.hideTimeout = null;
+        this.isMobile = window.innerWidth < 768;
+        this.isVisible = false;
+        
+        this.init();
+    }
+    
+    init() {
+        if (!this.textControls || !this.editorContainer) return;
+        
+        // Set initial opacity
+        this.textControls.style.opacity = '0';
+        this.textControls.style.transition = 'opacity 0.3s ease';
+        this.textControls.style.pointerEvents = 'none';
+        
+        if (this.isMobile) {
+            this.initMobile();
+        } else {
+            this.initDesktop();
+        }
+        
+        // Re-check on resize
+        window.addEventListener('resize', () => {
+            const wasMobile = this.isMobile;
+            this.isMobile = window.innerWidth < 768;
+            if (wasMobile !== this.isMobile) {
+                this.cleanup();
+                this.init();
+            }
+        });
+    }
+    
+    initDesktop() {
+        this.mouseEnterHandler = () => this.show();
+        this.mouseLeaveHandler = () => this.scheduleHide(2000);
+        this.controlsEnterHandler = () => this.cancelHide();
+        this.controlsLeaveHandler = () => this.scheduleHide(2000);
+        
+        this.editorContainer.addEventListener('mouseenter', this.mouseEnterHandler);
+        this.editorContainer.addEventListener('mouseleave', this.mouseLeaveHandler);
+        this.textControls.addEventListener('mouseenter', this.controlsEnterHandler);
+        this.textControls.addEventListener('mouseleave', this.controlsLeaveHandler);
+    }
+    
+    initMobile() {
+        this.editorClickHandler = (e) => {
+            if (!this.textControls.contains(e.target)) {
+                if (this.isVisible) {
+                    this.scheduleHide(3000);
+                } else {
+                    this.show();
+                    this.scheduleHide(3000);
+                }
+            }
+        };
+        
+        this.controlsClickHandler = (e) => {
+            e.stopPropagation();
+            this.cancelHide();
+            this.show();
+            this.scheduleHide(3000);
+        };
+        
+        this.editorContainer.addEventListener('click', this.editorClickHandler);
+        this.textControls.addEventListener('click', this.controlsClickHandler);
+    }
+    
+    show() {
+        this.textControls.style.opacity = '1';
+        this.textControls.style.pointerEvents = 'auto';
+        this.isVisible = true;
+    }
+    
+    scheduleHide(delay) {
+        this.cancelHide();
+        this.hideTimeout = setTimeout(() => {
+            this.textControls.style.opacity = '0';
+            this.textControls.style.pointerEvents = 'none';
+            this.isVisible = false;
+        }, delay);
+    }
+    
+    cancelHide() {
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+            this.hideTimeout = null;
+        }
+    }
+    
+    cleanup() {
+        this.cancelHide();
+        if (this.isMobile) {
+            if (this.editorClickHandler) {
+                this.editorContainer.removeEventListener('click', this.editorClickHandler);
+            }
+            if (this.controlsClickHandler) {
+                this.textControls.removeEventListener('click', this.controlsClickHandler);
+            }
+        } else {
+            if (this.mouseEnterHandler) {
+                this.editorContainer.removeEventListener('mouseenter', this.mouseEnterHandler);
+                this.editorContainer.removeEventListener('mouseleave', this.mouseLeaveHandler);
+                this.textControls.removeEventListener('mouseenter', this.controlsEnterHandler);
+                this.textControls.removeEventListener('mouseleave', this.controlsLeaveHandler);
+            }
+        }
+    }
+}
+
+// ============================================
+// SELECTION HISTORY FOR UNDO/REDO
+// ============================================
+
+class SelectionHistory {
+    constructor() {
+        this.history = [];
+        this.currentIndex = -1;
+        this.maxHistory = 50;
+        this.noteContent = document.getElementById('noteContent');
+        this.isRestoring = false;
+        
+        if (this.noteContent) {
+            this.init();
+        }
+    }
+    
+    init() {
+        this.noteContent.addEventListener('mouseup', () => this.saveSelection());
+        this.noteContent.addEventListener('touchend', () => this.saveSelection());
+    }
+    
+    saveSelection() {
+        if (this.isRestoring) return;
+        
+        const selection = {
+            start: this.noteContent.selectionStart,
+            end: this.noteContent.selectionEnd,
+            text: this.noteContent.value.substring(
+                this.noteContent.selectionStart,
+                this.noteContent.selectionEnd
+            )
+        };
+        
+        if (selection.start !== selection.end || this.history.length === 0) {
+            const lastSelection = this.history[this.currentIndex];
+            
+            if (lastSelection && 
+                lastSelection.start === selection.start && 
+                lastSelection.end === selection.end) {
+                return;
+            }
+            
+            this.history = this.history.slice(0, this.currentIndex + 1);
+            this.history.push(selection);
+            this.currentIndex++;
+            
+            if (this.history.length > this.maxHistory) {
+                this.history.shift();
+                this.currentIndex--;
+            }
+        }
+    }
+    
+    undo() {
+        if (this.currentIndex > 0) {
+            this.currentIndex--;
+            this.restoreSelection(this.history[this.currentIndex]);
+            return true;
+        }
+        return false;
+    }
+    
+    redo() {
+        if (this.currentIndex < this.history.length - 1) {
+            this.currentIndex++;
+            this.restoreSelection(this.history[this.currentIndex]);
+            return true;
+        }
+        return false;
+    }
+    
+    restoreSelection(selection) {
+        this.isRestoring = true;
+        this.noteContent.focus();
+        this.noteContent.setSelectionRange(selection.start, selection.end);
+        
+        setTimeout(() => {
+            this.isRestoring = false;
+        }, 100);
+    }
+    
+    clear() {
+        this.history = [];
+        this.currentIndex = -1;
+    }
+}
+
+// ============================================
+// MARKDOWN PREVIEW MODE
+// ============================================
+
+class MarkdownPreview {
+    constructor() {
+        this.noteContent = document.getElementById('noteContent');
+        this.previewContainer = null;
+        this.isEnabled = false;
+        this.updateTimeout = null;
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.initialize());
+        } else {
+            this.initialize();
+        }
+    }
+    
+    initialize() {
+        this.createToggle();
+        this.createPreviewContainer();
+        this.loadState();
+    }
+    
+    createToggle() {
+        // Find the auto-save label container
+        const autoSaveLabel = document.querySelector('label:has(#autoSaveToggle)');
+        if (!autoSaveLabel) {
+            console.error('Could not find auto-save toggle');
+            return;
+        }
+        
+        // Create markdown toggle with same structure
+        const toggleHTML = `
+            <label class="flex items-center space-x-3">
+                <input type="checkbox" id="markdownToggle" class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span class="text-sm text-gray-700" data-i18n="settings.markdownPreview">Markdown Preview</span>
+            </label>
+        `;
+        
+        // Insert after auto-save
+        autoSaveLabel.parentElement.insertAdjacentHTML('afterend', `<div>${toggleHTML}</div>`);
+        
+        this.toggle = document.getElementById('markdownToggle');
+        if (this.toggle) {
+            this.toggle.addEventListener('change', () => this.togglePreview());
+        }
+        
+        // Add translations
+        this.addTranslations();
+    }
+    
+    addTranslations() {
+        if (typeof translations !== 'undefined') {
+            translations.en.settings.markdownPreview = 'Markdown Preview';
+            translations.cs.settings.markdownPreview = 'Náhled Markdown';
+            translations.sk.settings.markdownPreview = 'Náhľad Markdown';
+            translations.es.settings.markdownPreview = 'Vista previa de Markdown';
+            translations.pl.settings.markdownPreview = 'Podgląd Markdown';
+        }
+    }
+    
+    createPreviewContainer() {
+        this.previewContainer = document.createElement('div');
+        this.previewContainer.id = 'markdownPreview';
+        this.previewContainer.className = 'w-full resize-none border-none focus:outline-none focus:ring-0 text-gray-700 leading-relaxed custom-scrollbar hide-scrollbar';
+        this.previewContainer.style.display = 'none';
+        this.previewContainer.style.minHeight = '24rem';
+        this.previewContainer.style.padding = '0';
+        this.previewContainer.style.margin = '0';
+        this.previewContainer.style.overflowY = 'auto';
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            #markdownPreview {
+                line-height: 1.6;
+                color: #374151;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #markdownPreview h1 { font-size: 2em; font-weight: bold; margin: 0.5em 0; }
+            #markdownPreview h2 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
+            #markdownPreview h3 { font-size: 1.25em; font-weight: bold; margin: 0.5em 0; }
+            #markdownPreview h4 { font-size: 1.1em; font-weight: bold; margin: 0.5em 0; }
+            #markdownPreview p { margin: 0.5em 0; }
+            #markdownPreview p:first-child { margin-top: 0; }
+            #markdownPreview ul, #markdownPreview ol { margin: 0.5em 0; padding-left: 2em; }
+            #markdownPreview li { margin: 0.25em 0; }
+            #markdownPreview code { background: #f3f4f6; padding: 0.125em 0.25em; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+            #markdownPreview pre { background: #f3f4f6; padding: 1em; border-radius: 6px; overflow-x: auto; margin: 0.5em 0; }
+            #markdownPreview pre code { background: none; padding: 0; }
+            #markdownPreview blockquote { border-left: 4px solid #d1d5db; padding-left: 1em; color: #6b7280; margin: 0.5em 0; font-style: italic; }
+            #markdownPreview a { color: #4f46e5; text-decoration: underline; }
+            #markdownPreview a:hover { color: #6366f1; }
+            #markdownPreview strong { font-weight: bold; }
+            #markdownPreview em { font-style: italic; }
+            #markdownPreview hr { border: none; border-top: 2px solid #e5e7eb; margin: 1em 0; }
+            #markdownPreview table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+            #markdownPreview th, #markdownPreview td { border: 1px solid #e5e7eb; padding: 0.5em; text-align: left; }
+            #markdownPreview th { background: #f3f4f6; font-weight: bold; }
+            #markdownPreview img { max-width: 100%; height: auto; border-radius: 8px; margin: 0.5em 0; }
+        `;
+        document.head.appendChild(style);
+        
+        this.noteContent.parentElement.appendChild(this.previewContainer);
+    }
+    
+    togglePreview() {
+        this.isEnabled = this.toggle.checked;
+        
+        if (this.isEnabled) {
+            // Switch to preview mode (read-only)
+            this.noteContent.style.display = 'none';
+            this.previewContainer.style.display = 'block';
+            this.updatePreview();
+            this.applyFontSize();
+            
+            // Update preview when content changes (from other sources)
+            this.inputHandler = () => this.handleInput();
+            this.noteContent.addEventListener('input', this.inputHandler);
+            
+            // Hide text controls in preview mode
+            const textControls = document.querySelector('.text-controls');
+            if (textControls) {
+                textControls.style.display = 'none';
+            }
+        } else {
+            // Switch back to edit mode
+            this.noteContent.style.display = 'block';
+            this.previewContainer.style.display = 'none';
+            if (this.inputHandler) {
+                this.noteContent.removeEventListener('input', this.inputHandler);
+            }
+            
+            // Show text controls again
+            const textControls = document.querySelector('.text-controls');
+            if (textControls) {
+                textControls.style.display = 'flex';
+            }
+        }
+        
+        this.saveState();
+    }
+    
+    applyFontSize() {
+        // Get current font size from global variable or noteContent
+        const currentFontSize = typeof fontSize !== 'undefined' ? fontSize : 14;
+        this.previewContainer.style.fontSize = `${currentFontSize}px`;
+    }
+    
+    handleInput() {
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => this.updatePreview(), 300);
+    }
+    
+    updatePreview() {
+        const markdown = this.noteContent.value;
+        const parsedHtml = this.parseMarkdown(markdown);
+        
+        // Add a visual indicator that this is preview mode
+        const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : 'en';
+        const previewBadges = {
+            en: 'Preview Mode - Toggle off to edit',
+            cs: 'Režim náhledu - Vypněte pro úpravy',
+            sk: 'Režim náhľadu - Vypnite na úpravu',
+            es: 'Modo vista previa - Desactiva para editar',
+            pl: 'Tryb podglądu - Wyłącz, aby edytować'
+        };
+        
+        const badge = `<div style="background: #938eeda8; color: #ffffff; padding: 0.1rem 0.5rem;  border-radius: 0.5rem;  margin-bottom: 0.5rem; font-size: 0.6rem; font-weight: 300;  display: inline-block;">${previewBadges[lang] || previewBadges.en}</div>`;
+           
+   
+    
+   
+   
+    
+    
+   
+        this.previewContainer.innerHTML = badge + parsedHtml;
+        this.applyFontSize();
+    }
+    
+    parseMarkdown(md) {
+        if (!md) {
+            const lang = typeof currentLanguage !== 'undefined' ? currentLanguage : 'en';
+            const placeholders = {
+                en: 'Start typing to see preview...',
+                cs: 'Začněte psát pro zobrazení náhledu...',
+                sk: 'Začnite písať pre zobrazenie náhľadu...',
+                es: 'Comienza a escribir para ver la vista previa...',
+                pl: 'Zacznij pisać, aby zobaczyć podgląd...'
+            };
+            return `<p class="text-gray-400">${placeholders[lang] || placeholders.en}</p>`;
+        }
+        
+        let html = md;
+        
+        // Escape HTML to prevent XSS
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Code blocks (must be before inline code)
+        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        
+        // Headers
+        html = html.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+        
+        // Bold (must be before italic)
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+        
+        // Italic
+        html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+        
+        // Inline code
+        html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+        
+        // Images (must be before links)
+        html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+        
+        // Links
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        
+        // Horizontal rule
+        html = html.replace(/^---+$/gim, '<hr>');
+        html = html.replace(/^\*\*\*+$/gim, '<hr>');
+        
+        // Blockquotes
+        html = html.replace(/^&gt; (.+)$/gim, '<blockquote>$1</blockquote>');
+        
+        // Unordered lists
+        html = html.replace(/^\* (.+)$/gim, '<ul><li>$1</li></ul>');
+        html = html.replace(/^- (.+)$/gim, '<ul><li>$1</li></ul>');
+        html = html.replace(/<\/ul>\n<ul>/g, '');
+        
+        // Ordered lists
+        html = html.replace(/^\d+\. (.+)$/gim, '<ol><li>$1</li></ol>');
+        html = html.replace(/<\/ol>\n<ol>/g, '');
+        
+        // Line breaks
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = html.replace(/\n/g, '<br>');
+        
+        // Wrap in paragraphs
+        if (!html.startsWith('<')) {
+            html = '<p>' + html + '</p>';
+        }
+        
+        return html;
+    }
+    
+    saveState() {
+        try {
+            localStorage.setItem('propiska_markdownPreview', this.isEnabled);
+        } catch (e) {
+            console.error('Could not save markdown preview state:', e);
+        }
+    }
+    
+    loadState() {
+        try {
+            const saved = localStorage.getItem('propiska_markdownPreview');
+            if (saved === 'true' && this.toggle) {
+                this.toggle.checked = true;
+                this.togglePreview();
+            }
+        } catch (e) {
+            console.error('Could not load markdown preview state:', e);
+        }
+    }
+    
+    // Public method to update font size when changed
+    updateFontSize() {
+        if (this.isEnabled) {
+            this.applyFontSize();
+        }
+    }
+}
+
+// ============================================
+// FIX MOBILE COUNTER SPACING
+// ============================================
+
+function fixMobileCounterSpacing() {
+    const style = document.createElement('style');
+    style.textContent = `
+        @media (max-width: 768px) {
+            .editor-container .border-t .flex {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .editor-container .border-t .text-xs {
+                display: flex;
+                align-items: center;
+                gap: 0.25rem;
+                margin-right: 4rem;
+            }
+            
+            #charCount, #wordCount {
+                white-space: nowrap;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ============================================
+// INITIALIZE ALL FEATURES
+// ============================================
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initEnhancements);
+} else {
+    initEnhancements();
+}
+
+let propiskaMarkdownPreview = null;
+
+function initEnhancements() {
+    setTimeout(() => {
+        try {
+            const controlsManager = new TextControlsManager();
+            const selectionHistory = new SelectionHistory();
+            propiskaMarkdownPreview = new MarkdownPreview();
+            
+            fixMobileCounterSpacing();
+            
+            // Hook into existing font size change functions
+            if (typeof window !== 'undefined') {
+                const originalUpdateFontSize = window.updateFontSize;
+                if (typeof originalUpdateFontSize === 'function') {
+                    window.updateFontSize = function() {
+                        originalUpdateFontSize.apply(this, arguments);
+                        if (propiskaMarkdownPreview) {
+                            propiskaMarkdownPreview.updateFontSize();
+                        }
+                    };
+                }
+            }
+            
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+            
+            console.log('ProPiska Enhanced Controls Loaded');
+        } catch (error) {
+            console.error('Error initializing ProPiska enhancements:', error);
+        }
+    }, 500);
+}
 // App state
 let notes = JSON.parse(localStorage.getItem('propiska_notes')) || [];
 
