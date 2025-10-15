@@ -1,773 +1,824 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ProPiska - Smart Note Taking</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        :root {
-            --primary-color: rgb(79, 70, 229);
-            --primary-opacity: rgba(79, 70, 229, 0.6);
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-        
-        .note-card {
-            transition: all 0.2s ease;
-            cursor: grab;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .note-card:active {
-            cursor: grabbing;
-        }
-        
-        .note-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        
-        .note-card.selected {
-            background-color: rgba(79, 70, 229, 0.05);
-            border-color: rgba(79, 70, 229, 0.2);
-        }
-        
-        .note-card.deleting {
-            background-color: rgba(239, 68, 68, 0.1);
-            border-color: rgba(239, 68, 68, 0.3);
-            transform: translateX(-100%);
-            opacity: 0;
-        }
-        
-        .delete-indicator {
-            position: absolute;
-            right: -60px;
-            top: 0;
-            height: 100%;
-            width: 60px;
-            background-color: #ef4444;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            transition: right 0.2s ease;
-        }
-        
-        .note-card.show-delete .delete-indicator {
-            right: 0;
-        }
-        
-        .editor-container {
-            min-height: 70vh;
-        }
-        
-        .floating-action-btn {
-            background-color: var(--primary-opacity);
-            box-shadow: 0 4px 15px 0 rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
-        }
-        
-        .floating-action-btn:hover {
-            background-color: rgba(79, 70, 229, 0.8);
-            transform: scale(1.05);
-        }
-        
-        .text-controls {
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        
-        .editor-container:hover .text-controls {
-            opacity: 1;
-        }
-        
-        .text-controls:hover {
-            opacity: 1;
-        }
-        
-        /* Hide scrollbars on mobile */
-        @media (max-width: 768px) {
-            .hide-scrollbar::-webkit-scrollbar {
-                display: none;
-            }
-            
-            .hide-scrollbar {
-                -ms-overflow-style: none;
-                scrollbar-width: none;
-            }
-            
-            .editor-container {
-                min-height: 60vh;
-            }
-        }
-        
-        /* Smooth transitions for settings panel */
-        .settings-panel {
-            transition: transform 0.3s ease;
-        }
-        
-        /* Drag and drop styling */
-        .dragging {
-            opacity: 0.5;
-            transform: rotate(5deg);
-        }
-        
-        .drop-zone {
-            border: 2px dashed rgba(79, 70, 229, 0.3);
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        /* Text area styling */
-        #noteContent {
-            resize: none;
-            line-height: 1.6;
-        }
-        
-        /* Custom scrollbar for desktop */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #c5c5c5;
-            border-radius: 10px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-		/* Mobile notes panel */
-        @media (max-width: 1023px) {
-            .notes-sidebar {
-                position: fixed;
-                left: 0;
-                top: 64px;
-                height: calc(100vh - 64px);
-                z-index: 40;
-                transform: translateX(-100%);
-                transition: transform 0.3s ease;
-            }
-            
-            .notes-sidebar.show {
-                transform: translateX(0);
-            }
-            
-            .notes-sidebar-overlay {
-                position: fixed;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.5);
-                z-index: 35;
-                opacity: 0;
-                pointer-events: none;
-                transition: opacity 0.3s ease;
-            }
-            
-            .notes-sidebar-overlay.show {
-                opacity: 1;
-                pointer-events: auto;
-            }
-        }
-        
-        .language-option.active {
-            border-color: rgb(79, 70, 229);
-            background-color: rgba(79, 70, 229, 0.05);
-        }
-        
-        .language-option.active .lang-check {
-            display: block !important;
-        }
-        
-        /* Delete Confirmation Modal */
-        .delete-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 60;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-        
-        .delete-modal.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        .delete-modal-content {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            max-width: 400px;
-            width: 90%;
-            transform: scale(0.9);
-            transition: transform 0.3s ease;
-        }
-        
-        .delete-modal.show .delete-modal-content {
-            transform: scale(1);
-        }
-        
-        .delete-modal-header {
-            padding: 24px 24px 16px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .delete-modal-body {
-            padding: 16px 24px 24px;
-        }
-        
-        .delete-modal-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-        
-        .btn-cancel {
-            background: #f3f4f6;
-            color: #374151;
-            border: 1px solid #d1d5db;
-        }
-        
-        .btn-cancel:hover {
-            background: #e5e7eb;
-        }
-        
-        .btn-delete {
-            background: #ef4444;
-            color: white;
-        }
-        
-        .btn-delete:hover {
-            background: #dc2626;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProPiska - Smart Note Taking</title>
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/feather-icons"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+--primary-color: rgb(79, 70, 229);
+--primary-opacity: rgba(79, 70, 229, 0.6);
+}
+
+body {
+font-family: 'Inter', sans-serif;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+}
+
+#fontSizeDisplay {}
+.flex {justify-content: space-evenly; }
+.note-card {
+transition: all 0.2s ease;
+cursor: grab;
+position: relative;
+overflow: hidden;
+}
+
+.note-card:active {
+cursor: grabbing;
+}
+
+.note-card:hover {
+transform: translateY(-1px);
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.note-card.selected {
+background-color: rgba(79, 70, 229, 0.05);
+border-color: rgba(79, 70, 229, 0.2);
+}
+
+.note-card.deleting {
+background-color: rgba(239, 68, 68, 0.1);
+border-color: rgba(239, 68, 68, 0.3);
+transform: translateX(-100%);
+opacity: 0;
+}
+
+.delete-indicator {
+position: absolute;
+right: -60px;
+top: 0;
+height: 100%;
+width: 60px;
+background-color: #ef4444;
+display: flex;
+align-items: center;
+justify-content: center;
+color: white;
+transition: right 0.2s ease;
+}
+
+.note-card.show-delete .delete-indicator {
+right: 0;
+}
+
+.editor-container {
+min-height: 70vh;
+}
+
+.floating-action-btn {
+background-color: var(--primary-opacity);
+box-shadow: 0 4px 15px 0 rgba(0, 0, 0, 0.1);
+transition: all 0.2s ease;
+}
+
+.floating-action-btn:hover {
+background-color: rgba(79, 70, 229, 0.8);
+transform: scale(1.05);
+}
+
+.text-controls {
+opacity: 0;
+transition: opacity 0.2s ease;
+}
+
+.editor-container:hover .text-controls {
+opacity: 1;
+}
+
+.text-controls:hover {
+opacity: 1;
+}
+#autoSaveToggle {width:50px"impmortant}
+
+}
+
+/* Hide scrollbars on mobile */
+@media (max-width: 768px) {
+.hide-scrollbar::-webkit-scrollbar {
+display: none;
+}
+
+.hide-scrollbar {
+-ms-overflow-style: none;
+scrollbar-width: none;
+}
+
+.editor-container {
+min-height: 60vh;
+}
+}
+
+/* Smooth transitions for settings panel */
+.settings-panel {
+transition: transform 0.3s ease;
+}
+
+/* Drag and drop styling */
+.dragging {
+opacity: 0.5;
+transform: rotate(5deg);
+}
+
+.drop-zone {
+border: 2px dashed rgba(79, 70, 229, 0.3);
+border-radius: 8px;
+transition: all 0.2s ease;
+}
+
+/* Text area styling */
+#noteContent {
+resize: none;
+line-height: 1.6;
+word-wrap: break-word;
+overflow-wrap: break-word;
+}
+
+#noteTitle {
+word-wrap: break-word;
+overflow-wrap: break-word;
+}
+
+/* Custom scrollbar for desktop */
+.custom-scrollbar::-webkit-scrollbar {
+width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+background: #f1f1f1;
+border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+background: #c5c5c5;
+border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+background: #a8a8a8;
+}
+/* Mobile notes panel */
+@media (max-width: 1023px) {
+.notes-sidebar {
+position: fixed;
+left: 0;
+top: 64px;
+height: calc(100vh - 64px);
+z-index: 40;
+transform: translateX(-100%);
+transition: transform 0.3s ease;
+}
+
+.notes-sidebar.show {
+transform: translateX(0);
+}
+
+.notes-sidebar-overlay {
+position: fixed;
+inset: 0;
+background: rgba(0, 0, 0, 0.5);
+z-index: 35;
+opacity: 0;
+pointer-events: none;
+transition: opacity 0.3s ease;
+}
+
+.notes-sidebar-overlay.show {
+opacity: 1;
+pointer-events: auto;
+}
+}
+
+.language-option.active {
+border-color: rgb(79, 70, 229);
+background-color: rgba(79, 70, 229, 0.05);
+}
+
+.language-option.active .lang-check {
+display: block !important;
+}
+
+/* Delete Confirmation Modal */
+.delete-modal {
+position: fixed;
+inset: 0;
+background: rgba(0, 0, 0, 0.5);
+z-index: 60;
+display: flex;
+align-items: center;
+justify-content: center;
+opacity: 0;
+pointer-events: none;
+transition: opacity 0.3s ease;
+}
+
+.delete-modal.show {
+opacity: 1;
+pointer-events: auto;
+}
+
+.delete-modal-content {
+background: white;
+border-radius: 16px;
+box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+max-width: 400px;
+width: 90%;
+transform: scale(0.9);
+transition: transform 0.3s ease;
+}
+
+.delete-modal.show .delete-modal-content {
+transform: scale(1);
+}
+
+.delete-modal-header {
+padding: 24px 24px 16px;
+border-bottom: 1px solid #e5e7eb;
+}
+
+.delete-modal-body {
+padding: 16px 24px 24px;
+}
+
+.delete-modal-actions {
+display: flex;
+gap: 12px;
+justify-content: flex-end;
+}
+
+.btn-cancel {
+background: #f3f4f6;
+color: #374151;
+border: 1px solid #d1d5db;
+}
+
+.btn-cancel:hover {
+background: #e5e7eb;
+}
+
+.btn-delete {
+background: #ef4444;
+color: white;
+}
+
+.btn-delete:hover {
+background: #dc2626;
+}
+
+.undo-redo-btn {
+padding: 6px 8px;
+background: #f3f4f6;
+border-radius: 6px;
+transition: all 0.2s ease;
+}
+
+.undo-redo-btn:hover:not(:disabled) {
+background: #e5e7eb;
+}
+
+.undo-redo-btn:disabled {
+opacity: 0.4;
+cursor: not-allowed;
+}
+</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <!-- Navigation -->
-    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center space-x-3">
-                    <i data-feather="edit-3" class="text-indigo-600 w-6 h-6"></i>
-                    <span class="text-xl font-semibold text-gray-900">ProPiska</span>
-                </div>
-                
-                <div class="flex items-center space-x-4">
-                    <button id="settingsBtn" class="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
-                        <i data-feather="settings" class="w-5 h-5"></i>
-                    </button>
-                    <button id="newNoteBtn" class="hidden text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2">
-                  <i data-feather="plus" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-	<!-- Mobile sidebar overlay -->
-    <div class="notes-sidebar-overlay" id="notesSidebarOverlay"></div>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Sidebar - Notes List -->
-		<div class="notes-sidebar lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6" id="notesSidebar">                <div class="mb-6">
-                    <div class="relative">
-                        <input type="text" id="searchNotes" placeholder="Search notes..." 
-                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <i data-feather="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
-                    </div>
-                </div>
-                
-                <div class="space-y-3 custom-scrollbar hide-scrollbar" id="notesList" style="max-height: 70vh; overflow-y: auto;">
-                    <!-- Notes will be dynamically populated here -->
-                </div>
-            </div>
-
-            <!-- Main Editor -->
-            <div class="lg:col-span-3">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 editor-container">
-                    <div class="p-6">
-                        <input type="text" id="noteTitle" placeholder="Note title..." 
-                               class="w-full text-2xl font-bold border-none focus:outline-none focus:ring-0 mb-4">
-                        
-				<!-- Text Controls -->
-                        <div class="text-controls flex flex-wrap gap-2 mb-4">
-                            <button id="capitalizeBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                                Aa
-                            </button>
-                            <button id="lowercaseBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                                aa
-                            </button>
-                            <button id="uppercaseBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                                AA
-                            </button> 
-                            <div class="flex items-center space-x-2 ml-auto">
-                                <button id="decreaseFontBtn" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
-                                    <i data-feather="minus" class="w-3 h-3"></i>
-                                </button>
-                                <span id="fontSizeDisplay" class="text-xs text-gray-500">14px</span>
-                                <button id="increaseFontBtn" class="w-6 h-6 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
-                                    <i data-feather="plus" class="w-3 h-3"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <textarea id="noteContent" placeholder="Start typing your note here..." 
-                                 class="w-full h-96 resize-none border-none focus:outline-none focus:ring-0 text-gray-700 leading-relaxed custom-scrollbar hide-scrollbar"></textarea>
-                    </div>
-                    
-                    <!-- Editor Toolbar -->
-                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-3 rounded-b-xl">
-                        <div class="flex justify-between items-center">
-                            <div class="flex space-x-4">
-                               
-                            </div>
-                                                            <button id="deleteNoteBtn" class="text-sm text-red-600 hover:text-red-700 transition-colors" >
-                                    Delete Note
-                                </button>
-                            <div class="text-sm text-gray-400">
-                                <span id="charCount">0 characters</span>
-                                <span class="mx-2">•</span>
-                                <span id="wordCount">0 words</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Floating Action Button for Mobile -->
-    <button id="mobileFab" class="fixed bottom-6 right-10 w-14 h-14 rounded-full shadow-lg flex items-center justify-center floating-action-btn">
-        <i data-feather="plus" class="w-6 h-6 text-white"></i>
-    </button>
-
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="delete-modal">
-        <div class="delete-modal-content">
-            <div class="delete-modal-header">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                        <i data-feather="trash-2" class="w-5 h-5 text-red-600"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-900" id="deleteModalTitle">Delete Note</h3>
-                        <p class="text-sm text-gray-500 mt-1" id="deleteModalMessage">Are you sure you want to delete this note? This action cannot be undone.</p>
-                    </div>
-                </div>
-            </div>
-            <div class="delete-modal-body">
-                <div class="delete-modal-actions">
-                    <button id="cancelDelete" class="btn-cancel px-4 py-2 rounded-lg font-medium transition-colors">
-                        Cancel
-                    </button>
-                    <button id="confirmDelete" class="btn-delete px-4 py-2 rounded-lg font-medium transition-colors">
-                        Delete
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Panel -->
-    <div id="settingsPanel" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden settings-panel">
-        <div class="absolute right-0 top-0 h-full w-80 bg-white shadow-xl transform translate-x-full transition-transform duration-300">
-            <div class="p-6 h-full flex flex-col">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="text-lg font-semibold text-gray-900">Settings</h2>
-                    <button id="closeSettings" class="p-2 rounded-lg hover:bg-gray-100">
-                        <i data-feather="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                
-                <div class="space-y-6 flex-1 overflow-y-auto custom-scrollbar">
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-900 mb-3" data-i18n="settings.language">Language</h3>
-                        <button id="languageBtn" class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                            <div class="flex items-center space-x-3">
-                                <span class="text-2xl">🌐</span>
-                                <span class="text-sm text-gray-700" id="currentLanguage" data-i18n="language.english">English</span>
-                            </div>
-                            <i data-feather="chevron-right" class="w-4 h-4 text-gray-400"></i>
-                        </button>
-                    </div>
-                    
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-900 mb-3" data-i18n="settings.autoSave">Auto-save</h3>
-                        <label class="flex items-center space-x-3">
-                            <input type="checkbox" id="autoSaveToggle" checked class="rounded text-indigo-600 focus:ring-indigo-500">
-                            <span class="text-sm text-gray-700" data-i18n="settings.enableAutoSave">Enable auto-save</span>
-                        </label>
-                    </div>
-                     <button id="exportTextBtn" class="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
-                                    Export as Text
-                                </button>
-
-                    <div>
-                        <h3 class="text-sm font-medium text-gray-900 mb-3" data-i18n="settings.exportOptions">Export Options</h3>
-                        <div class="space-y-2">
-                            <button id="exportCurrentText" class="w-full text-left text-sm text-gray-700 hover:text-indigo-600 py-1" data-i18n="settings.exportCurrentText">Export Current as Text</button>
-                            <button class="w-full text-left text-sm text-gray-700 hover:text-indigo-600 py-1" data-i18n="settings.backupAllNotes">Backup all notes</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="pt-6 border-t border-gray-200">
-                    <button id="clearAllData" class="w-full text-left text-sm text-red-600 hover:text-red-700 py-1">
-                        Clear All Data
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-	<!-- Language Selection Modal -->
-<div id="languageModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
-        <div class="p-6 border-b border-gray-200">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <span class="text-3xl">🌐</span>
-                    <h2 class="text-xl font-semibold text-gray-900" data-i18n="languageModal.title">Choose Language</h2>
-                </div>
-                <button id="closeLanguageModal" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                    <i data-feather="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </div>
-        
-        <div class="p-6 space-y-3">
-            <button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="en">
-                <div class="flex items-center space-x-4">
-                    <span class="text-3xl">🇬🇧</span>
-                    <div class="text-left">
-                        <div class="font-semibold text-gray-900">English</div>
-                        <div class="text-sm text-gray-500">English (United States)</div>
-                    </div>
-                </div>
-                <div class="lang-check hidden">
-                    <i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
-                </div>
-            </button>
-            
-            <button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="cs">
-                <div class="flex items-center space-x-4">
-                    <span class="text-3xl">🇨🇿</span>
-                    <div class="text-left">
-                        <div class="font-semibold text-gray-900">Čeština</div>
-                        <div class="text-sm text-gray-500">Czech (Česká republika)</div>
-                    </div>
-                </div>
-                <div class="lang-check hidden">
-                    <i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
-                </div>
-            </button>
-
-            <!-- Polish Language Option -->
-            <button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="pl">
-                <div class="flex items-center space-x-4">
-                    <span class="text-3xl">🇵🇱</span>
-                    <div class="text-left">
-                        <div class="font-semibold text-gray-900">Polski</div>
-                        <div class="text-sm text-gray-500">Polish (Polska)</div>
-                    </div>
-                </div>
-                <div class="lang-check hidden">
-                    <i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
-                </div>
-            </button>
-
-            <!-- Spanish Language Option -->
-            <button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="es">
-                <div class="flex items-center space-x-4">
-                    <span class="text-3xl">🇪🇸</span>
-                    <div class="text-left">
-                        <div class="font-semibold text-gray-900">Español</div>
-                        <div class="text-sm text-gray-500">Spanish (España)</div>
-                    </div>
-                </div>
-                <div class="lang-check hidden">
-                    <i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
-                </div>
-            </button>
-
-            <!-- Slovak Language Option -->
-            <button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="sk">
-                <div class="flex items-center space-x-4">
-                    <span class="text-3xl">🇸🇰</span>
-                    <div class="text-left">
-                        <div class="font-semibold text-gray-900">Slovenčina</div>
-                        <div class="text-sm text-gray-500">Slovak (Slovensko)</div>
-                    </div>
-                </div>
-                <div class="lang-check hidden">
-                    <i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
-                </div>
-            </button>
-        </div>
-    </div>
+<!-- Navigation -->
+<nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex justify-between items-center h-16">
+<div class="flex items-center space-x-3">
+<i data-feather="edit-3" class="text-indigo-600 w-6 h-6"></i>
+<span class="text-xl font-semibold text-gray-900">ProPiska</span>
 </div>
 
-    <!-- Mobile Notes Panel Toggle Button -->
-    <button id="toggleNotesPanel" class="lg:hidden fixed bottom-6 left-6 w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white border-2 border-gray-300 hover:border-indigo-400 transition-all">
-        <i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
-    </button>
+<div class="flex items-center space-x-4">
+<button id="settingsBtn" class="p-2 rounded-lg text-gray-500 hover:bg-gray-100">
+<i data-feather="settings" class="w-5 h-5"></i>
+</button>
+<button id="newNoteBtn" class="hidden text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center space-x-2">
+<i data-feather="plus" class="w-4 h-4"></i>
+</button>
+</div>
+</div>
+</div>
+</nav>
+
+<!-- Main Content -->
+<!-- Mobile sidebar overlay -->
+<div class="notes-sidebar-overlay" id="notesSidebarOverlay"></div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<!-- Sidebar - Notes List -->
+<div class="notes-sidebar lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6" id="notesSidebar"> <div class="mb-6">
+<div class="relative">
+<input type="text" id="searchNotes" placeholder="Search notes..."
+class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+<i data-feather="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+</div>
+</div>
+
+<div class="space-y-3 custom-scrollbar hide-scrollbar" id="notesList" style="max-height: 70vh; overflow-y: auto;">
+<!-- Notes will be dynamically populated here -->
+</div>
+</div>
+
+<!-- Main Editor -->
+<div class="lg:col-span-3">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 editor-container">
+<div class="p-6">
+<input type="text" id="noteTitle" placeholder="Note title..." maxlength="20"
+class="w-full text-2xl font-bold border-none focus:outline-none focus:ring-0 mb-4">
+
+<!-- Text Controls -->
+<div class="text-controls flex flex-wrap gap-2 mb-4">
+<button id="undoBtn" class="undo-redo-btn" title="Undo (Ctrl+Z)">
+<i data-feather="corner-up-left" class="w-4 h-4"></i>
+</button>
+<button id="redoBtn" class="undo-redo-btn" title="Redo (Ctrl+Y)">
+<i data-feather="corner-up-right" class="w-4 h-4"></i>
+</button>
+<div class="w-px h-6 bg-gray-300 mx-1"></div>
+<button id="capitalizeBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+Aa
+</button>
+<button id="lowercaseBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+aa
+</button>
+<button id="uppercaseBtn" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+AA
+</button>
+
+</div>
+
+<textarea id="noteContent" placeholder="Start typing your note here..."
+class="w-full h-96 resize-none border-none focus:outline-none focus:ring-0 text-gray-700 leading-relaxed custom-scrollbar hide-scrollbar"></textarea>
+</div>
+
+<!-- Editor Toolbar -->
+<div class="border-t border-gray-200 bg-gray-50 px-6 py-3 rounded-b-xl">
+<div class="flex justify-between items-center">
+<div class="flex space-x-4">
+
+</div>
+<button id="deleteNoteBtn" class="text-sm text-red-600 hover:text-red-700 transition-colors" >
+Delete
+</button>
+<div class="text-xs text-gray-400 text-center">
+<span id="charCount">0 characters</span>
+<span class="mx-2">•</span>
+<span id="wordCount">0 words</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Floating Action Button for Mobile -->
+<button id="mobileFab" class="fixed bottom-6 right-10 w-14 h-14 rounded-full shadow-lg flex items-center justify-center floating-action-btn">
+<i data-feather="plus" class="w-6 h-6 text-white"></i>
+</button>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="delete-modal">
+<div class="delete-modal-content">
+<div class="delete-modal-header">
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+<i data-feather="trash-2" class="w-5 h-5 text-red-600"></i>
+</div>
+<div>
+<h3 class="text-lg font-semibold text-gray-900" id="deleteModalTitle">Delete Note</h3>
+<p class="text-sm text-gray-500 mt-1" id="deleteModalMessage">Are you sure you want to delete this note? This action cannot be undone.</p>
+</div>
+</div>
+</div>
+<div class="delete-modal-body">
+<div class="delete-modal-actions">
+<button id="cancelDelete" class="btn-cancel px-4 py-2 rounded-lg font-medium transition-colors">
+Cancel
+</button>
+<button id="confirmDelete" class="btn-delete px-4 py-2 rounded-lg font-medium transition-colors">
+Delete
+</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settingsPanel" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden settings-panel">
+<div class="absolute right-0 top-0 h-full w-80 bg-white shadow-xl transform translate-x-full transition-transform duration-300">
+<div class="p-6 h-full flex flex-col">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-lg font-semibold text-gray-900">Settings</h2>
+<button id="closeSettings" class="p-2 rounded-lg hover:bg-gray-100">
+<i data-feather="x" class="w-5 h-5"></i>
+</button>
+</div>
+
+<div class="space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+<div>
+<h3 class="text-sm font-medium text-gray-900 mb-3" data-i18n="settings.language">Language</h3>
+<button id="languageBtn" class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+<div class="flex items-center space-x-3">
+<span class="text-2xl">🌐</span>
+<span class="text-sm text-gray-700" id="currentLanguage" data-i18n="language.english">English</span>
+</div>
+<i data-feather="chevron-right" class="w-4 h-4 text-gray-400"></i>
+</button>
+</div>
+<br>
+
+<div>
+
+<label class="flex items-center space-x-3">
+<input type="checkbox" id="autoSaveToggle" checked class="rounded text-indigo-600 focus:ring-indigo-500">
+<span class="hover:text-red-600 text-sm text-gray-700" data-i18n="settings.enableAutoSave">Enable auto-save</span>
+</label>
+</div>
+<br><br>
+
+
+<div>
+<strong> <h3 class="text-sm text-gray-900 mb-3" data-i18n="settings.exportOptions">Export Options</h3></strong>
+
+<div class="space-y-2">
+<button id="exportCurrentText" class="w-full text-left text-sm text-gray-700 hover:text-red-700 py-1" data-i18n="settings.exportCurrentText">Export Current as Text</button>
+<button id="exportAllNotes" class="w-full text-left text-sm text-gray-700 hover:text-red-700 py-1" data-i18n="settings.exportAllNotes">Export All Notes</button>
+<button class="hidden w-full text-left text-sm text-gray-700 hover:text-red-700 py-1" data-i18n="settings.backupAllNotes">Backup all notes</button>
+<button id="exportTextBtn" class="text-sm text-gray-600 hover:text-indigo-600 transition-colors">
+
+</button>
+</div>
+<br>
+
+<br>
+<br>
+
+<div class="flex items-center space-x-2 ml-auto">
+<button id="decreaseFontBtn" class="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+<i data-feather="minus" class="w- h-6 "></i>
+</button>
+<span id="fontSizeDisplay" class="text-lg text-gray-500">14px</span>
+<button id="increaseFontBtn" class="w-12 h-12 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+<i data-feather="plus" class="w-3 h-3"></i>
+</button>
+</div>
+</div>
+</div>
+
+<div class="pt-6 border-t border-gray-200">
+<button id="clearAllData" class="w-full text-left text-sm text-red-600 hover:text-red-700 py-1">
+Clear All Data
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Language Selection Modal -->
+<div id="languageModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+<div class="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
+<div class="p-6 border-b border-gray-200">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-3">
+<span class="text-3xl">🌐</span>
+<h2 class="text-xl font-semibold text-gray-900" data-i18n="languageModal.title">Choose Language</h2>
+</div>
+<button id="closeLanguageModal" class="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+<i data-feather="x" class="w-5 h-5"></i>
+</button>
+</div>
+</div>
+
+<div class="p-6 space-y-3">
+<button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="en">
+<div class="flex items-center space-x-4">
+<span class="text-3xl">🇬🇧</span>
+<div class="text-left">
+<div class="font-semibold text-gray-900">English</div>
+<div class="text-sm text-gray-500">English (United States)</div>
+</div>
+</div>
+<div class="lang-check hidden">
+<i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
+</div>
+</button>
+
+<button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="cs">
+<div class="flex items-center space-x-4">
+<span class="text-3xl">🇨🇿</span>
+<div class="text-left">
+<div class="font-semibold text-gray-900">Čeština</div>
+<div class="text-sm text-gray-500">Czech (Česká republika)</div>
+</div>
+</div>
+<div class="lang-check hidden">
+<i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
+</div>
+</button>
+
+<!-- Polish Language Option -->
+<button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="pl">
+<div class="flex items-center space-x-4">
+<span class="text-3xl">🇵🇱</span>
+<div class="text-left">
+<div class="font-semibold text-gray-900">Polski</div>
+<div class="text-sm text-gray-500">Polish (Polska)</div>
+</div>
+</div>
+<div class="lang-check hidden">
+<i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
+</div>
+</button>
+
+<!-- Spanish Language Option -->
+<button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="es">
+<div class="flex items-center space-x-4">
+<span class="text-3xl">🇪🇸</span>
+<div class="text-left">
+<div class="font-semibold text-gray-900">Español</div>
+<div class="text-sm text-gray-500">Spanish (España)</div>
+</div>
+</div>
+<div class="lang-check hidden">
+<i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
+</div>
+</button>
+
+<!-- Slovak Language Option -->
+<button class="language-option w-full flex items-center justify-between p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all" data-lang="sk">
+<div class="flex items-center space-x-4">
+<span class="text-3xl">🇸🇰</span>
+<div class="text-left">
+<div class="font-semibold text-gray-900">Slovenčina</div>
+<div class="text-sm text-gray-500">Slovak (Slovensko)</div>
+</div>
+</div>
+<div class="lang-check hidden">
+<i data-feather="check-circle" class="w-6 h-6 text-indigo-600"></i>
+</div>
+</button>
+</div>
+</div>
+</div>
+
+<!-- Mobile Notes Panel Toggle Button -->
+<button id="toggleNotesPanel" class="lg:hidden fixed bottom-6 left-6 w-12 h-12 rounded-full shadow-lg flex items-center justify-center bg-white border-2 border-gray-300 hover:border-indigo-400 transition-all">
+<i data-feather="menu" class="w-5 h-5 text-gray-700"></i>
+</button>
 
 <script>
-       // Translations
+// Translations
 const translations = {
-    en: {
-        app: {
-            title: 'ProPiska ',
-            newNote: 'New Note',
-            searchPlaceholder: 'Search notes...',
-            noNotes: 'No notes yet. Create your first note!'
-        },
-        editor: {
-            titlePlaceholder: 'Note title...',
-            contentPlaceholder: 'Start typing your note here...',
-            capitalizeSentences: 'Aa',
-            lowercaseSelected: 'aa',
-            uppercaseSelected: 'AA',
-            exportText: 'Export as Text',
-            deleteNote: 'Delete Note',
-            characters: 'characters',
-            words: 'words',
-            untitled: 'Untitled'
-        },
-        settings: {
-            title: 'Settings',
-            language: 'Language',
-            autoSave: 'Auto-save',
-            enableAutoSave: 'Enable auto-save',
-            exportOptions: 'Export Options',
-            exportCurrentText: 'Export Current as Text',
-            backupAllNotes: 'Backup all notes',
-            clearAllData: 'Clear All Data'
-        },
-language: {
-    english: 'English',
-    czech: 'Čeština', 
-    slovak: 'Slovenčina',
-    spanish: 'Español',
-    polish: 'Polski'
+en: {
+app: {
+title: 'ProPiska ',
+newNote: 'New Note',
+searchPlaceholder: 'Search notes...',
+noNotes: 'No notes yet. Create your first note!'
 },
-        languageModal: {
-            title: 'Choose Language'
-        },
-        dialogs: {
-            deleteConfirm: 'Are you sure you want to delete this note?',
-            clearAllConfirm: 'Are you sure you want to delete all notes? This action cannot be undone.'
-        }
-    },
-    cs: {
-        app: {
-            title: 'ProPiska',
-            newNote: 'Nová poznámka',
-            searchPlaceholder: 'Najít poznámku...',
-            noNotes: 'Nemáte žádné poznámky. Vytvořte první!'
-        },
-        editor: {
-            titlePlaceholder: 'Název poznámky...',
-            contentPlaceholder: 'Začněte psát zde...',
-            capitalizeSentences: 'Aa',
-            lowercaseSelected: 'aa',
-            uppercaseSelected: 'AA',
-            exportText: 'Exportovat jako text',
-            deleteNote: 'Smazat poznámku',
-            characters: 'znaků',
-            words: 'slov',
-            untitled: 'Bez názvu'
-        },
-        settings: {
-            title: 'Nastavení',
-            language: 'Jazyk',
-            autoSave: 'Automatické ukládání',
-            enableAutoSave: 'Automatické ukládání',
-            exportOptions: 'Možnosti exportu',
-            exportCurrentText: 'Exportovat jako text',
-            backupAllNotes: 'Zálohovat všechny poznámky',
-            clearAllData: 'Vymazat všechna data'
-        },
-language: {
-    english: 'English',
-    czech: 'Čeština', 
-    slovak: 'Slovenčina',
-    spanish: 'Español',
-    polish: 'Polski'
+editor: {
+titlePlaceholder: 'Note title...',
+contentPlaceholder: 'Start typing your note here...',
+capitalizeSentences: 'Aa',
+lowercaseSelected: 'aa',
+uppercaseSelected: 'AA',
+exportText: 'Export as Text',
+deleteNote: 'Delete Note',
+characters: 'characters',
+words: 'words',
+untitled: 'Untitled'
 },
-        languageModal: {
-            title: 'Vyberte jazyk'
-        },
-        dialogs: {
-            deleteConfirm: 'Opravdu chcete smazat poznámku?',
-            clearAllConfirm: 'Opravdu chcete smazat všechny poznámky? Tuto akci nelze vrátit zpět.'
-        }
-    },
-    sk: {
-        app: {
-            title: 'ProPiska ',
-            newNote: 'Nová poznámka',
-            searchPlaceholder: 'Hľadať poznámky...',
-            noNotes: 'Zatiaľ žiadne poznámky. Vytvorte si prvú!'
-        },
-        editor: {
-            titlePlaceholder: 'Názov poznámky...',
-            contentPlaceholder: 'Začnite písať sem...',
-            capitalizeSentences: 'Aa',
-            lowercaseSelected: 'aa',
-            uppercaseSelected: 'AA',
-            exportText: 'Exportovať ako text',
-            deleteNote: 'Odstrániť poznámku',
-            characters: 'znakov',
-            words: 'slov',
-            untitled: 'Bez názvu'
-        },
-        settings: {
-            title: 'Nastavenia',
-            language: 'Jazyk',
-            autoSave: 'Automatické ukladanie',
-            enableAutoSave: 'Automatické ukladanie',
-            exportOptions: 'Možnosti exportu',
-            exportCurrentText: 'Exportovať ako text',
-            backupAllNotes: 'Zálohovať všetky poznámky',
-            clearAllData: 'Vymazať všetky údaje'
-        },
-language: {
-    english: 'English',
-    czech: 'Čeština', 
-    slovak: 'Slovenčina',
-    spanish: 'Español',
-    polish: 'Polski'
+settings: {
+title: 'Settings',
+language: 'Language',
+autoSave: 'Auto-save',
+enableAutoSave: 'Enable auto-save',
+exportOptions: 'Export Options',
+exportCurrentText: 'Export Current as Text',
+exportAllNotes: 'Export All Notes',
+backupAllNotes: 'Backup all notes',
+clearAllData: 'Clear All Data'
 },
-        languageModal: {
-            title: 'Vyberte jazyk'
-        },
-        dialogs: {
-            deleteConfirm: 'Naozaj chcete odstrániť poznámku?',
-            clearAllConfirm: 'Naozaj chcete odstrániť všetky poznámky? Táto akcia sa nedá vrátiť späť.'
-        }
-    },
-    es: {
-        app: {
-            title: 'ProPiska ',
-            newNote: 'Nueva nota',
-            searchPlaceholder: 'Buscar notas...',
-            noNotes: 'Aún no hay notas. ¡Crea tu primera nota!'
-        },
-        editor: {
-            titlePlaceholder: 'Título de la nota...',
-            contentPlaceholder: 'Empieza a escribir tu nota aquí...',
-            capitalizeSentences: 'Aa',
-            lowercaseSelected: 'aa',
-            uppercaseSelected: 'AA',
-            exportText: 'Exportar como texto',
-            deleteNote: 'Eliminar nota',
-            characters: 'caracteres',
-            words: 'palabras',
-            untitled: 'Sin título'
-        },
-        settings: {
-            title: 'Ajustes',
-            language: 'Idioma',
-            autoSave: 'Autoguardado',
-            enableAutoSave: 'Habilitar autoguardado',
-            exportOptions: 'Opciones de exportación',
-            exportCurrentText: 'Exportar actual como texto',
-            backupAllNotes: 'Hacer copia de seguridad de todas las notas',
-            clearAllData: 'Borrar todos los datos'
-        },
 language: {
-    english: 'English',
-    czech: 'Čeština', 
-    slovak: 'Slovenčina',
-    spanish: 'Español',
-    polish: 'Polski'
+english: 'English',
+czech: 'Čeština',
+slovak: 'Slovenčina',
+spanish: 'Español',
+polish: 'Polski'
 },
-        languageModal: {
-            title: 'Elige el idioma'
-        },
-        dialogs: {
-            deleteConfirm: '¿Estás seguro de que quieres eliminar esta nota?',
-            clearAllConfirm: '¿Estás seguro de que quieres eliminar todas las notas? Esta acción no se puede deshacer.'
-        }
-    },
-    pl: {
-        app: {
-            title: 'ProPiska ',
-            newNote: 'Nowa notatka',
-            searchPlaceholder: 'Szukaj notatek...',
-            noNotes: 'Brak notatek. Utwórz swoją pierwszą notatkę!'
-        },
-        editor: {
-            titlePlaceholder: 'Tytuł notatki...',
-            contentPlaceholder: 'Zacznij pisać swoją notatkę tutaj...',
-            capitalizeSentences: 'Aa',
-            lowercaseSelected: 'aa',
-            uppercaseSelected: 'AA',
-            exportText: 'Eksportuj jako tekst',
-            deleteNote: 'Usuń notatkę',
-            characters: 'znaków',
-            words: 'słów',
-            untitled: 'Bez tytułu'
-        },
-        settings: {
-            title: 'Ustawienia',
-            language: 'Jazyk',
-            autoSave: 'Autozapis',
-            enableAutoSave: 'Włącz autozapis',
-            exportOptions: 'Opcje eksportu',
-            exportCurrentText: 'Eksportuj bieżący jako tekst',
-            backupAllNotes: 'Utwórz kopię zapasową wszystkich notatek',
-            clearAllData: 'Wyczyść wszystkie dane'
-        },
+languageModal: {
+title: 'Choose Language'
+},
+dialogs: {
+deleteConfirm: 'Are you sure you want to delete this note?',
+clearAllConfirm: 'Are you sure you want to delete all notes? This action cannot be undone.'
+}
+},
+cs: {
+app: {
+title: 'ProPiska',
+newNote: 'Nová poznámka',
+searchPlaceholder: 'Najít poznámku...',
+noNotes: 'Nemáte žádné poznámky. Vytvořte první!'
+},
+editor: {
+titlePlaceholder: 'Název poznámky...',
+contentPlaceholder: 'Začněte psát zde...',
+capitalizeSentences: 'Aa',
+lowercaseSelected: 'aa',
+uppercaseSelected: 'AA',
+exportText: 'Exportovat jako text',
+deleteNote: 'Smazat poznámku',
+characters: 'znaků',
+words: 'slov',
+untitled: 'Bez názvu'
+},
+settings: {
+title: 'Nastavení',
+language: 'Jazyk',
+autoSave: 'Automatické ukládání',
+enableAutoSave: 'Automatické ukládání',
+exportOptions: 'Možnosti exportu',
+exportCurrentText: 'Exportovat jako text',
+exportAllNotes: 'Exportovat všechny poznámky',
+backupAllNotes: 'Zálohovat všechny poznámky',
+clearAllData: 'Vymazat všechna data'
+},
 language: {
-    english: 'English',
-    czech: 'Čeština', 
-    slovak: 'Slovenčina',
-    spanish: 'Español',
-    polish: 'Polski'
+english: 'English',
+czech: 'Čeština',
+slovak: 'Slovenčina',
+spanish: 'Español',
+polish: 'Polski'
 },
-        languageModal: {
-            title: 'Wybierz język'
-        },
-        dialogs: {
-            deleteConfirm: 'Czy na pewno chcesz usunąć notatkę?',
-            clearAllConfirm: 'Czy na pewno chcesz usunąć wszystkie notatki? Tej akcji nie można cofnąć.'
-        }
-    }
+languageModal: {
+title: 'Vyberte jazyk'
+},
+dialogs: {
+deleteConfirm: 'Opravdu chcete smazat poznámku?',
+clearAllConfirm: 'Opravdu chcete smazat všechny poznámky? Tuto akci nelze vrátit zpět.'
+}
+},
+sk: {
+app: {
+title: 'ProPiska ',
+newNote: 'Nová poznámka',
+searchPlaceholder: 'Hľadať poznámky...',
+noNotes: 'Zatiaľ žiadne poznámky. Vytvorte si prvú!'
+},
+editor: {
+titlePlaceholder: 'Názov poznámky...',
+contentPlaceholder: 'Začnite písať sem...',
+capitalizeSentences: 'Aa',
+lowercaseSelected: 'aa',
+uppercaseSelected: 'AA',
+exportText: 'Exportovať ako text',
+deleteNote: 'Odstrániť poznámku',
+characters: 'znakov',
+words: 'slov',
+untitled: 'Bez názvu'
+},
+settings: {
+title: 'Nastavenia',
+language: 'Jazyk',
+autoSave: 'Automatické ukladanie',
+enableAutoSave: 'Automatické ukladanie',
+exportOptions: 'Možnosti exportu',
+exportCurrentText: 'Exportovať ako text',
+exportAllNotes: 'Exportovať všetky poznámky',
+backupAllNotes: 'Zálohovať všetky poznámky',
+clearAllData: 'Vymazať všetky údaje'
+},
+language: {
+english: 'English',
+czech: 'Čeština',
+slovak: 'Slovenčina',
+spanish: 'Español',
+polish: 'Polski'
+},
+languageModal: {
+title: 'Vyberte jazyk'
+},
+dialogs: {
+deleteConfirm: 'Naozaj chcete odstrániť poznámku?',
+clearAllConfirm: 'Naozaj chcete odstrániť všetky poznámky? Táto akcia sa nedá vrátiť späť.'
+}
+},
+es: {
+app: {
+title: 'ProPiska ',
+newNote: 'Nueva nota',
+searchPlaceholder: 'Buscar notas...',
+noNotes: 'Aún no hay notas. ¡Crea tu primera nota!'
+},
+editor: {
+titlePlaceholder: 'Título de la nota...',
+contentPlaceholder: 'Empieza a escribir tu nota aquí...',
+capitalizeSentences: 'Aa',
+lowercaseSelected: 'aa',
+uppercaseSelected: 'AA',
+exportText: 'Exportar como texto',
+deleteNote: 'Eliminar nota',
+characters: 'caracteres',
+words: 'palabras',
+untitled: 'Sin título'
+},
+settings: {
+title: 'Ajustes',
+language: 'Idioma',
+autoSave: 'Autoguardado',
+enableAutoSave: 'Habilitar autoguardado',
+exportOptions: 'Opciones de exportación',
+exportCurrentText: 'Exportar actual como texto',
+exportAllNotes: 'Exportar todas las notas',
+backupAllNotes: 'Hacer copia de seguridad de todas las notas',
+clearAllData: 'Borrar todos los datos'
+},
+language: {
+english: 'English',
+czech: 'Čeština',
+slovak: 'Slovenčina',
+spanish: 'Español',
+polish: 'Polski'
+},
+languageModal: {
+title: 'Elige el idioma'
+},
+dialogs: {
+deleteConfirm: '¿Estás seguro de que quieres eliminar esta nota?',
+clearAllConfirm: '¿Estás seguro de que quieres eliminar todas las notas? Esta acción no se puede deshacer.'
+}
+},
+pl: {
+app: {
+title: 'ProPiska ',
+newNote: 'Nowa notatka',
+searchPlaceholder: 'Szukaj notatek...',
+noNotes: 'Brak notatek. Utwórz swoją pierwszą notatkę!'
+},
+editor: {
+titlePlaceholder: 'Tytuł notatki...',
+contentPlaceholder: 'Zacznij pisać swoją notatkę tutaj...',
+capitalizeSentences: 'Aa',
+lowercaseSelected: 'aa',
+uppercaseSelected: 'AA',
+exportText: 'Eksportuj jako tekst',
+deleteNote: 'Usuń notatkę',
+characters: 'znaków',
+words: 'słów',
+untitled: 'Bez tytułu'
+},
+settings: {
+title: 'Ustawienia',
+language: 'Jazyk',
+autoSave: 'Autozapis',
+enableAutoSave: 'Włącz autozapis',
+exportOptions: 'Opcje eksportu',
+exportCurrentText: 'Eksportuj bieżący jako tekst',
+exportAllNotes: 'Eksportuj wszystkie notatki',
+backupAllNotes: 'Utwórz kopię zapasową wszystkich notatek',
+clearAllData: 'Wyczyść wszystkie dane'
+},
+language: {
+english: 'English',
+czech: 'Čeština',
+slovak: 'Slovenčina',
+spanish: 'Español',
+polish: 'Polski'
+},
+languageModal: {
+title: 'Wybierz język'
+},
+dialogs: {
+deleteConfirm: 'Czy na pewno chcesz usunąć notatkę?',
+clearAllConfirm: 'Czy na pewno chcesz usunąć wszystkie notatki? Tej akcji nie można cofnąć.'
+}
+}
 };
-        // App state
+
 // App state
 let notes = JSON.parse(localStorage.getItem('propiska_notes')) || [];
 
 // Initialize with welcome notes if empty
 if (notes.length === 0) {
-    const currentLang = localStorage.getItem('propiska_language') || 'en';
-    
-    const welcomeNotes = {
-        en: {
-            id: Date.now(),
-            title: 'Welcome! Start Taking Notes in Seconds',
-            content: `Simple & Fast
+const currentLang = localStorage.getItem('propiska_language') || 'en';
+
+const welcomeNotes = {
+en: {
+id: Date.now(),
+title: 'Welcome! Start Taking Notes in Seconds',
+content: `Simple & Fast
 Just click "+" and start typing. No sign-up required.
 
 Auto-Save Built In
@@ -777,18 +828,18 @@ Private & Secure
 Everything stays on your device. No cloud, no tracking, completely private.
 
 Quick Tips:
-• Use the search bar to find notes instantly
-• Drag notes to reorder them
-• Change language in settings (⚙️)
+- Use the search bar to find notes instantly
+- Drag notes to reorder them
+- Change language in settings (⚙️)
 
 Ready? Create your first note now!`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        },
-        cs: {
-            id: Date.now() + 1,
-            title: 'Vítejte! Začněte psát poznámky během vteřin',
-            content: `Jednoduché a rychlé
+createdAt: new Date().toISOString(),
+updatedAt: new Date().toISOString()
+},
+cs: {
+id: Date.now() + 1,
+title: 'Vítejte! Začněte psát poznámky během vteřin',
+content: `Jednoduché a rychlé
 Stačí kliknout na "+" a začít novou poznámku. Bez registrace.
 
 Vestavěné automatické ukládání
@@ -798,723 +849,898 @@ Soukromé a bezpečné
 Vše zůstává ve vašem zařízení. Žádný cloud, žádné sledování, zcela soukromé.
 
 Rychlé tipy:
-• Použijte vyhledávací lištu pro okamžité nalezení poznámek
-• Přetahujte poznámky pro změnu pořadí
-• Změňte jazyk v nastavení (⚙️)
+- Použijte vyhledávací lištu pro okamžité nalezení poznámek
+- Přetahujte poznámky pro změnu pořadí
+- Změňte jazyk v nastavení (⚙️)
 
 Připraveni? Vytvořte si svou první poznámku!`,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        }
-    };
-    
-    notes = [welcomeNotes.en, welcomeNotes.cs];
-    localStorage.setItem('propiska_notes', JSON.stringify(notes));
+createdAt: new Date().toISOString(),
+updatedAt: new Date().toISOString()
 }
-        let currentNoteId = null;
-        let fontSize = parseInt(localStorage.getItem('propiska_fontsize')) || 14;
-        let autoSaveEnabled = localStorage.getItem('propiska_autosave') !== 'false';
-        let currentLanguage = localStorage.getItem('propiska_language') || 'en';
-        let isDragging = false;
-        let dragStartIndex = null;
-        
-        // Swipe-to-delete variables
-        let touchStartX = 0;
-        let touchEndX = 0;
-        let currentSwipeNote = null;
-        let pendingDeleteNoteId = null;
-        
-        // DOM Elements
-        const notesList = document.getElementById('notesList');
-        const noteTitle = document.getElementById('noteTitle');
-        const noteContent = document.getElementById('noteContent');
-        const searchNotes = document.getElementById('searchNotes');
-        const settingsBtn = document.getElementById('settingsBtn');
-        const closeSettings = document.getElementById('closeSettings');
-        const settingsPanel = document.getElementById('settingsPanel');
-        const newNoteBtn = document.getElementById('newNoteBtn');
-        const mobileFab = document.getElementById('mobileFab');
-        const charCount = document.getElementById('charCount');
-        const wordCount = document.getElementById('wordCount');
-        const capitalizeBtn = document.getElementById('capitalizeBtn');
-        const lowercaseBtn = document.getElementById('lowercaseBtn');
-        const uppercaseBtn = document.getElementById('uppercaseBtn');
-        const decreaseFontBtn = document.getElementById('decreaseFontBtn');
-        const increaseFontBtn = document.getElementById('increaseFontBtn');
-        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
-        const exportTextBtn = document.getElementById('exportTextBtn');
-        const deleteNoteBtn = document.getElementById('deleteNoteBtn');
-        const exportCurrentText = document.getElementById('exportCurrentText');
-        const autoSaveToggle = document.getElementById('autoSaveToggle');
-        const clearAllData = document.getElementById('clearAllData');
-        const languageBtn = document.getElementById('languageBtn');
-        const languageModal = document.getElementById('languageModal');
-        const closeLanguageModal = document.getElementById('closeLanguageModal');
-        const languageOptions = document.querySelectorAll('.language-option');
-        const toggleNotesPanel = document.getElementById('toggleNotesPanel');
-        const notesSidebar = document.getElementById('notesSidebar');
-        const notesSidebarOverlay = document.getElementById('notesSidebarOverlay');
-        
-        // Delete modal elements
-        const deleteModal = document.getElementById('deleteModal');
-        const cancelDelete = document.getElementById('cancelDelete');
-        const confirmDelete = document.getElementById('confirmDelete');
-        const deleteModalTitle = document.getElementById('deleteModalTitle');
-        const deleteModalMessage = document.getElementById('deleteModalMessage');
-        
-        // Translation function
-        function translate(lang) {
-            currentLanguage = lang;
-            localStorage.setItem('propiska_language', lang);
-            
-            const t = translations[lang];
-            
-            // Translate all elements with data-i18n attribute
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const keys = el.getAttribute('data-i18n').split('.');
-                let value = t;
-                keys.forEach(key => {
-                    value = value[key];
-                });
-                el.textContent = value;
-            });
-            
-            // Translate placeholders
-            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-                const keys = el.getAttribute('data-i18n-placeholder').split('.');
-                let value = t;
-                keys.forEach(key => {
-                    value = value[key];
-                });
-                el.placeholder = value;
-            });
-            
-            // Update current language display
+};
+
+notes = [welcomeNotes.en, welcomeNotes.cs];
+localStorage.setItem('propiska_notes', JSON.stringify(notes));
+}
+
+let currentNoteId = null;
+let fontSize = parseInt(localStorage.getItem('propiska_fontsize')) || 14;
+let autoSaveEnabled = localStorage.getItem('propiska_autosave') !== 'false';
+let currentLanguage = localStorage.getItem('propiska_language') || 'en';
+let isDragging = false;
+let dragStartIndex = null;
+
+// Undo/Redo state
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 50;
+
+// Swipe-to-delete variables
+let touchStartX = 0;
+let touchEndX = 0;
+let currentSwipeNote = null;
+let pendingDeleteNoteId = null;
+
+// DOM Elements
+const notesList = document.getElementById('notesList');
+const noteTitle = document.getElementById('noteTitle');
+const noteContent = document.getElementById('noteContent');
+const searchNotes = document.getElementById('searchNotes');
+const settingsBtn = document.getElementById('settingsBtn');
+const closeSettings = document.getElementById('closeSettings');
+const settingsPanel = document.getElementById('settingsPanel');
+const newNoteBtn = document.getElementById('newNoteBtn');
+const mobileFab = document.getElementById('mobileFab');
+const charCount = document.getElementById('charCount');
+const wordCount = document.getElementById('wordCount');
+const capitalizeBtn = document.getElementById('capitalizeBtn');
+const lowercaseBtn = document.getElementById('lowercaseBtn');
+const uppercaseBtn = document.getElementById('uppercaseBtn');
+const decreaseFontBtn = document.getElementById('decreaseFontBtn');
+const increaseFontBtn = document.getElementById('increaseFontBtn');
+const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+const exportTextBtn = document.getElementById('exportTextBtn');
+const deleteNoteBtn = document.getElementById('deleteNoteBtn');
+const exportCurrentText = document.getElementById('exportCurrentText');
+const exportAllNotes = document.getElementById('exportAllNotes');
+const autoSaveToggle = document.getElementById('autoSaveToggle');
+const clearAllData = document.getElementById('clearAllData');
+const languageBtn = document.getElementById('languageBtn');
+const languageModal = document.getElementById('languageModal');
+const closeLanguageModal = document.getElementById('closeLanguageModal');
+const languageOptions = document.querySelectorAll('.language-option');
+const toggleNotesPanel = document.getElementById('toggleNotesPanel');
+const notesSidebar = document.getElementById('notesSidebar');
+const notesSidebarOverlay = document.getElementById('notesSidebarOverlay');
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+
+// Delete modal elements
+const deleteModal = document.getElementById('deleteModal');
+const cancelDelete = document.getElementById('cancelDelete');
+const confirmDelete = document.getElementById('confirmDelete');
+const deleteModalTitle = document.getElementById('deleteModalTitle');
+const deleteModalMessage = document.getElementById('deleteModalMessage');
+
+// Undo/Redo functions
+function saveToHistory() {
+if (!currentNoteId) return;
+    
+const note = notes.find(n => n.id === currentNoteId);
+if (!note) return;
+
+const state = {
+noteId: currentNoteId,
+title: note.title,
+content: note.content
+};
+
+// Add to undo stack
+undoStack.push(state);
+if (undoStack.length > MAX_HISTORY) {
+undoStack.shift();
+}
+
+// Clear redo stack when new action is performed
+redoStack = [];
+updateUndoRedoButtons();
+}
+
+function undo() {
+if (undoStack.length === 0) return;
+
+const note = notes.find(n => n.id === currentNoteId);
+if (!note) return;
+
+// Save current state to redo stack
+redoStack.push({
+noteId: currentNoteId,
+title: note.title,
+content: note.content
+});
+
+// Get previous state
+const previousState = undoStack.pop();
+    
+// Restore previous state
+note.title = previousState.title;
+note.content = previousState.content;
+note.updatedAt = new Date().toISOString();
+
+// Update UI
+noteTitle.value = note.title;
+noteContent.value = note.content;
+
+saveNotes();
+renderNotesList();
+updateCounters();
+updateUndoRedoButtons();
+}
+
+function redo() {
+if (redoStack.length === 0) return;
+
+const note = notes.find(n => n.id === currentNoteId);
+if (!note) return;
+
+// Save current state to undo stack
+undoStack.push({
+noteId: currentNoteId,
+title: note.title,
+content: note.content
+});
+
+// Get next state
+const nextState = redoStack.pop();
+
+// Restore next state
+note.title = nextState.title;
+note.content = nextState.content;
+note.updatedAt = new Date().toISOString();
+
+// Update UI
+noteTitle.value = note.title;
+noteContent.value = note.content;
+
+saveNotes();
+renderNotesList();
+updateCounters();
+updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+undoBtn.disabled = undoStack.length === 0;
+redoBtn.disabled = redoStack.length === 0;
+}
+
+// Export all notes function
+function exportAllNotesAsText() {
+if (notes.length === 0) return;
+
+const t = translations[currentLanguage];
+let content = '';
+
+notes.forEach((note, index) => {
+content += `${note.title || t.editor.untitled}\n`;
+content += '='.repeat(note.title?.length || t.editor.untitled.length) + '\n\n';
+content += note.content + '\n\n';
+if (index < notes.length - 1) {
+content += '\n---\n\n';
+}
+});
+
+const blob = new Blob([content], { type: 'text/plain' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `propiska_all_notes_${new Date().toISOString().split('T')[0]}.txt`;
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+}
+
+// Translation function
+function translate(lang) {
+currentLanguage = lang;
+localStorage.setItem('propiska_language', lang);
+
+const t = translations[lang];
+
+// Translate all elements with data-i18n attribute
+document.querySelectorAll('[data-i18n]').forEach(el => {
+const keys = el.getAttribute('data-i18n').split('.');
+let value = t;
+keys.forEach(key => {
+value = value[key];
+});
+el.textContent = value;
+});
+
+// Translate placeholders
+document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+const keys = el.getAttribute('data-i18n-placeholder').split('.');
+let value = t;
+keys.forEach(key => {
+value = value[key];
+});
+el.placeholder = value;
+});
+
 // Update current language display
 const languageNames = {
-    'en': t.language.english,
-    'cs': t.language.czech,
-    'pl': t.language.polish, 
-    'es': t.language.spanish,
-    'sk': t.language.slovak
+'en': t.language.english,
+'cs': t.language.czech,
+'pl': t.language.polish,
+'es': t.language.spanish,
+'sk': t.language.slovak
 };
-document.getElementById('currentLanguage').textContent = languageNames[lang] || t.language.english;            
-            // Update active language in modal
-            languageOptions.forEach(opt => {
-                if (opt.getAttribute('data-lang') === lang) {
-                    opt.classList.add('active');
-                } else {
-                    opt.classList.remove('active');
-                }
-            });
-            
-            // Re-render notes list and counters to update translations
-            renderNotesList();
-            updateCounters();
-            
-            feather.replace();
-        }
-        
-        // Initialize the app
-        function initApp() {
-            translate(currentLanguage);
-            renderNotesList();
-            if (notes.length > 0) {
-                loadNote(notes[0].id);
-            }
-            updateCounters();
-            updateFontSize();
-            autoSaveToggle.checked = autoSaveEnabled;
-            
-            // Set up auto-save interval if enabled
-            if (autoSaveEnabled) {
-                startAutoSave();
-            }
-            
-            // Add keyboard event listener
-            document.addEventListener('keydown', handleKeyDown);
-        }
-        
-        // Render notes list with drag and drop functionality
-        function renderNotesList(filteredNotes = null) {
-            const notesToRender = filteredNotes || notes;
-            const t = translations[currentLanguage];
-            notesList.innerHTML = '';
-            
-            if (notesToRender.length === 0) {
-                notesList.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <i data-feather="file" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
-                        <p>${t.app.noNotes}</p>
-                    </div>
-                `;
-                feather.replace();
-                return;
-            }
-            
-            notesToRender.forEach((note, index) => {
-                const noteElement = document.createElement('div');
-                noteElement.className = `note-card p-4 rounded-lg border border-gray-200 cursor-pointer ${
-                    currentNoteId === note.id ? 'selected' : ''
-                }`;
-                noteElement.setAttribute('draggable', 'true');
-                noteElement.setAttribute('data-index', index);
-                noteElement.setAttribute('data-id', note.id);
-                
-                noteElement.innerHTML = `
-                    <div class="delete-indicator">
-                        <i data-feather="trash-2" class="w-5 h-5"></i>
-                    </div>
-                    <div class="note-content">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-semibold text-gray-900 truncate flex-1 mr-2">${note.title || t.editor.untitled}</h3>
-                            <span class="text-xs text-gray-500 whitespace-nowrap">${formatDate(note.updatedAt)}</span>
-                        </div>
-                        <p class="text-sm text-gray-600 line-clamp-2">${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}</p>
-                    </div>
-                `;
-                
-                noteElement.addEventListener('click', (e) => {
-                    if (!isDragging) {
-                        loadNote(note.id);
-                        // Close mobile sidebar after selecting note
-                        if (window.innerWidth < 1024) {
-                            toggleMobileNotesPanel(false);
-                        }
-                    }
-                });
-                
-                // Drag and drop events
-                noteElement.addEventListener('dragstart', handleDragStart);
-                noteElement.addEventListener('dragover', handleDragOver);
-                noteElement.addEventListener('dragenter', handleDragEnter);
-                noteElement.addEventListener('dragleave', handleDragLeave);
-                noteElement.addEventListener('drop', handleDrop);
-                noteElement.addEventListener('dragend', handleDragEnd);
-                
-                // Add swipe events only for mobile devices
-                if (window.innerWidth < 1024) {
-                    noteElement.addEventListener('touchstart', handleTouchStart, { passive: true });
-                    noteElement.addEventListener('touchmove', handleTouchMove, { passive: true });
-                    noteElement.addEventListener('touchend', handleTouchEnd, { passive: true });
-                }
-                
-                notesList.appendChild(noteElement);
-            });
-            
-            feather.replace();
-        }
-        
-        // Drag and drop handlers
-        function handleDragStart(e) {
-            isDragging = true;
-            dragStartIndex = parseInt(e.target.getAttribute('data-index'));
-            e.target.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', dragStartIndex);
-        }
-        
-        function handleDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        }
-        
-        function handleDragEnter(e) {
-            e.preventDefault();
-            if (e.target.classList.contains('note-card')) {
-                e.target.classList.add('drop-zone');
-            }
-        }
-        
-        function handleDragLeave(e) {
-            if (e.target.classList.contains('note-card')) {
-                e.target.classList.remove('drop-zone');
-            }
-        }
-        
-        function handleDrop(e) {
-            e.preventDefault();
-            const dropTarget = e.target.closest('.note-card');
-            if (dropTarget) {
-                dropTarget.classList.remove('drop-zone');
-                
-                const dragEndIndex = parseInt(dropTarget.getAttribute('data-index'));
-                if (dragStartIndex !== null && dragEndIndex !== null && dragStartIndex !== dragEndIndex) {
-                    const draggedNote = notes[dragStartIndex];
-                    notes.splice(dragStartIndex, 1);
-                    notes.splice(dragEndIndex, 0, draggedNote);
-                    
-                    saveNotes();
-                    renderNotesList();
-                }
-            }
-        }
-        
-        function handleDragEnd(e) {
-            isDragging = false;
-            e.target.classList.remove('dragging');
-            document.querySelectorAll('.note-card').forEach(card => {
-                card.classList.remove('drop-zone');
-            });
-        }
-        
-        // Swipe-to-delete handlers (mobile only)
-        function handleTouchStart(e) {
-            touchStartX = e.changedTouches[0].screenX;
-            currentSwipeNote = e.currentTarget;
-            
-            // Reset any other swiped notes
-            document.querySelectorAll('.note-card').forEach(card => {
-                if (card !== currentSwipeNote) {
-                    card.classList.remove('show-delete');
-                }
-            });
-        }
-        
-        function handleTouchMove(e) {
-            if (!currentSwipeNote) return;
-            
-            touchEndX = e.changedTouches[0].screenX;
-            const diff = touchStartX - touchEndX;
-            
-            // Show delete indicator when swiping left
-            if (diff > 50) {
-                currentSwipeNote.classList.add('show-delete');
-            } else {
-                currentSwipeNote.classList.remove('show-delete');
-            }
-        }
-        
-        function handleTouchEnd(e) {
-            if (!currentSwipeNote) return;
-            
-            touchEndX = e.changedTouches[0].screenX;
-            const diff = touchStartX - touchEndX;
-            
-            // If swiped enough to the left, show delete confirmation
-            if (diff > 100) {
-                const noteId = parseInt(currentSwipeNote.getAttribute('data-id'));
-                showDeleteConfirmation(noteId, currentSwipeNote);
-            } else {
-                currentSwipeNote.classList.remove('show-delete');
-            }
-            
-            currentSwipeNote = null;
-        }
-        
-        // Show delete confirmation modal
-        function showDeleteConfirmation(noteId, noteElement = null) {
-            const t = translations[currentLanguage];
-            const note = notes.find(n => n.id === noteId);
-            
-            if (!note) return;
-            
-            // Update modal content
-            deleteModalTitle.textContent = t.editor.deleteNote;
-            deleteModalMessage.textContent = t.dialogs.deleteConfirm;
-            
-            // Store the note ID for deletion
-            pendingDeleteNoteId = noteId;
-            
-            // Show the modal
-            deleteModal.classList.add('show');
-            
-            // Reset swipe state
-            if (noteElement) {
-                noteElement.classList.remove('show-delete');
-            }
-        }
-        
-        // Delete note with animation
-        function deleteNoteWithAnimation(noteId, noteElement) {
-            // Add deleting class for animation
-            if (noteElement) {
-                noteElement.classList.add('deleting');
-            }
-            
-            // Wait for animation to complete before removing
-            setTimeout(() => {
-                const noteIndex = notes.findIndex(n => n.id === noteId);
-                if (noteIndex !== -1) {
-                    notes.splice(noteIndex, 1);
-                    saveNotes();
-                    
-                    // If we deleted the current note, load another one
-                    if (currentNoteId === noteId) {
-                        if (notes.length > 0) {
-                            loadNote(notes[0].id);
-                        } else {
-                            currentNoteId = null;
-                            noteTitle.value = '';
-                            noteContent.value = '';
-                        }
-                    }
-                    
-                    renderNotesList();
-                }
-            }, 300);
-        }
-        
-        // Keyboard shortcut handler
-        function handleKeyDown(e) {
-            // Check for Ctrl+Enter or Cmd+Enter
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                if (currentNoteId) {
-                    showDeleteConfirmation(currentNoteId);
-                }
-            }
-        }
-        
-        // Load a note into the editor
-        function loadNote(noteId) {
-            const note = notes.find(n => n.id === noteId);
-            if (note) {
-                currentNoteId = noteId;
-                noteTitle.value = note.title;
-                noteContent.value = note.content;
-                renderNotesList();
-            }
-        }
-        
-        // Create a new note
-        function createNewNote() {
-            const t = translations[currentLanguage];
-            const newNote = {
-                id: Date.now(),
-                title: t.editor.untitled,
-                content: '',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            
-            notes.unshift(newNote);
-            saveNotes();
-            loadNote(newNote.id);
-            renderNotesList();
-            
-            // Close mobile sidebar after creating note
-            if (window.innerWidth < 1024) {
-                toggleMobileNotesPanel(false);
-            }
-            
-            setTimeout(() => {
-                noteTitle.focus();
-                noteTitle.select();
-            }, 100);
-        }
-        
-        // Delete current note
-        function deleteCurrentNote() {
-            if (!currentNoteId) return;
-            showDeleteConfirmation(currentNoteId);
-        }
-        
-        // Save notes to localStorage
-        function saveNotes() {
-            if (autoSaveEnabled) {
-                localStorage.setItem('propiska_notes', JSON.stringify(notes));
-            }
-        }
-        
-        // Update character and word counters
-        function updateCounters() {
-            const t = translations[currentLanguage];
-            const content = noteContent.value;
-            const characters = content.length;
-            const words = content.trim() ? content.trim().split(/\s+/).length : 0;
-            
-            charCount.innerHTML = `${characters} <span data-i18n="editor.characters">${t.editor.characters}</span>`;
-            wordCount.innerHTML = `${words} <span data-i18n="editor.words">${t.editor.words}</span>`;
-        }
-        
-        // Format date for display
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString(currentLanguage === 'cs' ? 'cs-CZ' : 'en-US', {
-                month: 'short',
-                day: 'numeric'
-            });
-        }
-        
-        // Text transformation functions
-        function capitalizeSentences() {
-            const text = noteContent.value;
-            const sentences = text.split(/(?<=[.!?])\s+/);
-            const capitalized = sentences.map(sentence => {
-                if (sentence.length > 0) {
-                    return sentence.charAt(0).toUpperCase() + sentence.slice(1).toLowerCase();
-                }
-                return sentence;
-            }).join(' ');
-            
-            noteContent.value = capitalized;
-            updateNoteContent();
-        }
-        
-        function transformSelectedText(transformFn) {
-            const start = noteContent.selectionStart;
-            const end = noteContent.selectionEnd;
-            
-            if (start === end) {
-                noteContent.value = transformFn(noteContent.value);
-            } else {
-                const selectedText = noteContent.value.substring(start, end);
-                const transformedText = transformFn(selectedText);
-                noteContent.value = noteContent.value.substring(0, start) + 
-                                   transformedText + 
-                                   noteContent.value.substring(end);
-            }
-            
-            updateNoteContent();
-        }
-        
-        // Font size controls
-        function updateFontSize() {
-            noteContent.style.fontSize = `${fontSize}px`;
-            fontSizeDisplay.textContent = `${fontSize}px`;
-            localStorage.setItem('propiska_fontsize', fontSize.toString());
-        }
-        
-        function decreaseFontSize() {
-            if (fontSize > 12) {
-                fontSize--;
-                updateFontSize();
-            }
-        }
-        
-        function increaseFontSize() {
-            if (fontSize < 24) {
-                fontSize++;
-                updateFontSize();
-            }
-        }
-        
-        // Export note as text file
-        function exportNoteAsText() {
-            if (!currentNoteId) return;
-            
-            const note = notes.find(n => n.id === currentNoteId);
-            if (note) {
-                const content = `${note.title}\n\n${note.content}`;
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${note.title || 'note'}.txt`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-        }
-        
-        // Auto-save functionality
-        function startAutoSave() {
-            setInterval(() => {
-                if (currentNoteId && autoSaveEnabled) {
-                    saveNotes();
-                }
-            }, 30000);
-        }
-        
-        function toggleAutoSave() {
-            autoSaveEnabled = autoSaveToggle.checked;
-            localStorage.setItem('propiska_autosave', autoSaveEnabled.toString());
-        }
-        
-        // Update note content in the data model
-        function updateNoteContent() {
-            if (currentNoteId) {
-                const note = notes.find(n => n.id === currentNoteId);
-                if (note) {
-                    note.content = noteContent.value;
-                    note.updatedAt = new Date().toISOString();
-                    saveNotes();
-                    renderNotesList();
-                }
-            }
-            updateCounters();
-        }
-        
-        // Clear all data
-        function clearAllNotes() {
-            const t = translations[currentLanguage];
-            if (confirm(t.dialogs.clearAllConfirm)) {
-                notes = [];
-                localStorage.removeItem('propiska_notes');
-                currentNoteId = null;
-                noteTitle.value = '';
-                noteContent.value = '';
-                renderNotesList();
-                updateCounters();
-            }
-        }
-        
-        // Toggle mobile notes panel
-        function toggleMobileNotesPanel(show) {
-            if (show === undefined) {
-                notesSidebar.classList.toggle('show');
-                notesSidebarOverlay.classList.toggle('show');
-            } else if (show) {
-                notesSidebar.classList.add('show');
-                notesSidebarOverlay.classList.add('show');
-            } else {
-                notesSidebar.classList.remove('show');
-                notesSidebarOverlay.classList.remove('show');
-            }
-        }
-        
-        // Event Listeners
-        noteTitle.addEventListener('input', function() {
-            if (currentNoteId) {
-                const note = notes.find(n => n.id === currentNoteId);
-                if (note) {
-                    note.title = this.value;
-                    note.updatedAt = new Date().toISOString();
-                    saveNotes();
-                    renderNotesList();
-                }
-            }
-        });
-        
-        noteContent.addEventListener('input', updateNoteContent);
-        
-        searchNotes.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            if (searchTerm) {
-                const filteredNotes = notes.filter(note => 
-                    note.title.toLowerCase().includes(searchTerm) || 
-                    note.content.toLowerCase().includes(searchTerm)
-                );
-                renderNotesList(filteredNotes);
-            } else {
-                renderNotesList();
-            }
-        });
-        
-        settingsBtn.addEventListener('click', function() {
-            settingsPanel.classList.remove('hidden');
-            setTimeout(() => {
-                settingsPanel.querySelector('.absolute').classList.remove('translate-x-full');
-            }, 10);
-        });
-        
-        closeSettings.addEventListener('click', function() {
-            settingsPanel.querySelector('.absolute').classList.add('translate-x-full');
-            setTimeout(() => {
-                settingsPanel.classList.add('hidden');
-            }, 300);
-        });
-        
-        newNoteBtn.addEventListener('click', createNewNote);
-        mobileFab.addEventListener('click', createNewNote);
-        
-        // Text transformation buttons
-        capitalizeBtn.addEventListener('click', capitalizeSentences);
-        lowercaseBtn.addEventListener('click', () => transformSelectedText(text => text.toLowerCase()));
-        uppercaseBtn.addEventListener('click', () => transformSelectedText(text => text.toUpperCase()));
-        
-        // Font size buttons
-        decreaseFontBtn.addEventListener('click', decreaseFontSize);
-        increaseFontBtn.addEventListener('click', increaseFontSize);
-        
-        // Action buttons
-        exportTextBtn.addEventListener('click', exportNoteAsText);
-        exportCurrentText.addEventListener('click', exportNoteAsText);
-        deleteNoteBtn.addEventListener('click', deleteCurrentNote);
-        
-        // Settings
-        autoSaveToggle.addEventListener('change', toggleAutoSave);
-        clearAllData.addEventListener('click', clearAllNotes);
-        
-        // Language button
-        languageBtn.addEventListener('click', function() {
-            languageModal.classList.remove('hidden');
-            feather.replace();
-        });
-        
-        closeLanguageModal.addEventListener('click', function() {
-            languageModal.classList.add('hidden');
-        });
-        
-        languageModal.addEventListener('click', function(e) {
-            if (e.target === languageModal) {
-                languageModal.classList.add('hidden');
-            }
-        });
-        
-        languageOptions.forEach(option => {
-            option.addEventListener('click', function() {
-                const lang = this.getAttribute('data-lang');
-                translate(lang);
-                setTimeout(() => {
-                    languageModal.classList.add('hidden');
-                }, 300);
-            });
-        });
-        
-        // Mobile notes panel toggle
-        toggleNotesPanel.addEventListener('click', function() {
-            toggleMobileNotesPanel();
-        });
-        
-        notesSidebarOverlay.addEventListener('click', function() {
-            toggleMobileNotesPanel(false);
-        });
-        
-        // Delete modal events
-        cancelDelete.addEventListener('click', function() {
-            deleteModal.classList.remove('show');
-            pendingDeleteNoteId = null;
-        });
-        
-        confirmDelete.addEventListener('click', function() {
-            if (pendingDeleteNoteId) {
-                const noteElement = document.querySelector(`.note-card[data-id="${pendingDeleteNoteId}"]`);
-                deleteNoteWithAnimation(pendingDeleteNoteId, noteElement);
-                deleteModal.classList.remove('show');
-                pendingDeleteNoteId = null;
-            }
-        });
-        
-        deleteModal.addEventListener('click', function(e) {
-            if (e.target === deleteModal) {
-                deleteModal.classList.remove('show');
-                pendingDeleteNoteId = null;
-            }
-        });
-        
-        // Initialize the app
-        initApp();
-        
+document.getElementById('currentLanguage').textContent = languageNames[lang] || t.language.english;
+
+// Update active language in modal
+languageOptions.forEach(opt => {
+if (opt.getAttribute('data-lang') === lang) {
+opt.classList.add('active');
+} else {
+opt.classList.remove('active');
+}
+});
+
+// Re-render notes list and counters to update translations
+renderNotesList();
+updateCounters();
+
+feather.replace();
+}
+
+// Initialize the app
+function initApp() {
+translate(currentLanguage);
+renderNotesList();
+if (notes.length > 0) {
+loadNote(notes[0].id);
+}
+updateCounters();
+updateFontSize();
+autoSaveToggle.checked = autoSaveEnabled;
+updateUndoRedoButtons();
+
+// Set up auto-save interval if enabled
+if (autoSaveEnabled) {
+startAutoSave();
+}
+
+// Add keyboard event listener
+document.addEventListener('keydown', handleKeyDown);
+}
+
+// Render notes list with drag and drop functionality
+function renderNotesList(filteredNotes = null) {
+const notesToRender = filteredNotes || notes;
+const t = translations[currentLanguage];
+notesList.innerHTML = '';
+
+if (notesToRender.length === 0) {
+notesList.innerHTML = `
+<div class="text-center py-8 text-gray-500">
+<i data-feather="file" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+<p>${t.app.noNotes}</p>
+</div>
+`;
+feather.replace();
+return;
+}
+
+notesToRender.forEach((note, index) => {
+const noteElement = document.createElement('div');
+noteElement.className = `note-card p-4 rounded-lg border border-gray-200 cursor-pointer ${
+currentNoteId === note.id ? 'selected' : ''
+}`;
+noteElement.setAttribute('draggable', 'true');
+noteElement.setAttribute('data-index', index);
+noteElement.setAttribute('data-id', note.id);
+
+noteElement.innerHTML = `
+<div class="delete-indicator">
+<i data-feather="trash-2" class="w-5 h-5"></i>
+</div>
+<div class="note-content">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-semibold text-gray-900 truncate flex-1 mr-2">${note.title || t.editor.untitled}</h3>
+<span class="text-xs text-gray-500 whitespace-nowrap">${formatDate(note.updatedAt)}</span>
+</div>
+<p class="text-sm text-gray-600 line-clamp-2">${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}</p>
+</div>
+`;
+
+noteElement.addEventListener('click', (e) => {
+if (!isDragging) {
+loadNote(note.id);
+// Close mobile sidebar after selecting note
+if (window.innerWidth < 1024) {
+toggleMobileNotesPanel(false);
+}
+}
+});
+
+// Drag and drop events
+noteElement.addEventListener('dragstart', handleDragStart);
+noteElement.addEventListener('dragover', handleDragOver);
+noteElement.addEventListener('dragenter', handleDragEnter);
+noteElement.addEventListener('dragleave', handleDragLeave);
+noteElement.addEventListener('drop', handleDrop);
+noteElement.addEventListener('dragend', handleDragEnd);
+
+// Add swipe events only for mobile devices
+if (window.innerWidth < 1024) {
+noteElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+noteElement.addEventListener('touchmove', handleTouchMove, { passive: true });
+noteElement.addEventListener('touchend', handleTouchEnd, { passive: true });
+}
+
+notesList.appendChild(noteElement);
+});
+
+feather.replace();
+}
+
+// Drag and drop handlers
+function handleDragStart(e) {
+isDragging = true;
+dragStartIndex = parseInt(e.target.getAttribute('data-index'));
+e.target.classList.add('dragging');
+e.dataTransfer.effectAllowed = 'move';
+e.dataTransfer.setData('text/plain', dragStartIndex);
+}
+
+function handleDragOver(e) {
+e.preventDefault();
+e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+e.preventDefault();
+if (e.target.classList.contains('note-card')) {
+e.target.classList.add('drop-zone');
+}
+}
+
+function handleDragLeave(e) {
+if (e.target.classList.contains('note-card')) {
+e.target.classList.remove('drop-zone');
+}
+}
+
+function handleDrop(e) {
+e.preventDefault();
+const dropTarget = e.target.closest('.note-card');
+if (dropTarget) {
+dropTarget.classList.remove('drop-zone');
+
+const dragEndIndex = parseInt(dropTarget.getAttribute('data-index'));
+if (dragStartIndex !== null && dragEndIndex !== null && dragStartIndex !== dragEndIndex) {
+const draggedNote = notes[dragStartIndex];
+notes.splice(dragStartIndex, 1);
+notes.splice(dragEndIndex, 0, draggedNote);
+
+saveNotes();
+renderNotesList();
+}
+}
+}
+
+function handleDragEnd(e) {
+isDragging = false;
+e.target.classList.remove('dragging');
+document.querySelectorAll('.note-card').forEach(card => {
+card.classList.remove('drop-zone');
+});
+}
+
+// Swipe-to-delete handlers (mobile only)
+function handleTouchStart(e) {
+touchStartX = e.changedTouches[0].screenX;
+currentSwipeNote = e.currentTarget;
+
+// Reset any other swiped notes
+document.querySelectorAll('.note-card').forEach(card => {
+if (card !== currentSwipeNote) {
+card.classList.remove('show-delete');
+}
+});
+}
+
+function handleTouchMove(e) {
+if (!currentSwipeNote) return;
+
+touchEndX = e.changedTouches[0].screenX;
+const diff = touchStartX - touchEndX;
+
+// Show delete indicator when swiping left
+if (diff > 50) {
+currentSwipeNote.classList.add('show-delete');
+} else {
+currentSwipeNote.classList.remove('show-delete');
+}
+}
+
+function handleTouchEnd(e) {
+if (!currentSwipeNote) return;
+
+touchEndX = e.changedTouches[0].screenX;
+const diff = touchStartX - touchEndX;
+
+// If swiped enough to the left, show delete confirmation
+if (diff > 100) {
+const noteId = parseInt(currentSwipeNote.getAttribute('data-id'));
+showDeleteConfirmation(noteId, currentSwipeNote);
+} else {
+currentSwipeNote.classList.remove('show-delete');
+}
+
+currentSwipeNote = null;
+}
+
+// Show delete confirmation modal
+function showDeleteConfirmation(noteId, noteElement = null) {
+const t = translations[currentLanguage];
+const note = notes.find(n => n.id === noteId);
+
+if (!note) return;
+
+// Update modal content
+deleteModalTitle.textContent = t.editor.deleteNote;
+deleteModalMessage.textContent = t.dialogs.deleteConfirm;
+
+// Store the note ID for deletion
+pendingDeleteNoteId = noteId;
+
+// Show the modal
+deleteModal.classList.add('show');
+
+// Reset swipe state
+if (noteElement) {
+noteElement.classList.remove('show-delete');
+}
+}
+
+// Delete note with animation
+function deleteNoteWithAnimation(noteId, noteElement) {
+// Add deleting class for animation
+if (noteElement) {
+noteElement.classList.add('deleting');
+}
+
+// Wait for animation to complete before removing
+setTimeout(() => {
+const noteIndex = notes.findIndex(n => n.id === noteId);
+if (noteIndex !== -1) {
+notes.splice(noteIndex, 1);
+saveNotes();
+
+// If we deleted the current note, load another one
+if (currentNoteId === noteId) {
+if (notes.length > 0) {
+loadNote(notes[0].id);
+} else {
+currentNoteId = null;
+noteTitle.value = '';
+noteContent.value = '';
+undoStack = [];
+redoStack = [];
+updateUndoRedoButtons();
+}
+}
+
+renderNotesList();
+}
+}, 300);
+}
+
+// Keyboard shortcut handler
+function handleKeyDown(e) {
+// Check for Ctrl+Enter or Cmd+Enter (delete note)
+if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+e.preventDefault();
+if (currentNoteId) {
+showDeleteConfirmation(currentNoteId);
+}
+}
+    
+// Check for Ctrl+Z (undo)
+if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+e.preventDefault();
+undo();
+}
+    
+// Check for Ctrl+Y or Ctrl+Shift+Z (redo)
+if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+e.preventDefault();
+redo();
+}
+}
+
+// Load a note into the editor
+function loadNote(noteId) {
+const note = notes.find(n => n.id === noteId);
+if (note) {
+currentNoteId = noteId;
+noteTitle.value = note.title;
+noteContent.value = note.content;
+    
+// Reset undo/redo stacks when loading a different note
+undoStack = [];
+redoStack = [];
+updateUndoRedoButtons();
+    
+renderNotesList();
+}
+}
+
+// Create a new note
+function createNewNote() {
+const t = translations[currentLanguage];
+const newNote = {
+id: Date.now(),
+title: t.editor.untitled,
+content: '',
+createdAt: new Date().toISOString(),
+updatedAt: new Date().toISOString()
+};
+
+notes.unshift(newNote);
+saveNotes();
+loadNote(newNote.id);
+renderNotesList();
+
+// Close mobile sidebar after creating note
+if (window.innerWidth < 1024) {
+toggleMobileNotesPanel(false);
+}
+
+setTimeout(() => {
+noteTitle.focus();
+noteTitle.select();
+}, 100);
+}
+
+// Delete current note
+function deleteCurrentNote() {
+if (!currentNoteId) return;
+showDeleteConfirmation(currentNoteId);
+}
+
+// Save notes to localStorage
+function saveNotes() {
+if (autoSaveEnabled) {
+localStorage.setItem('propiska_notes', JSON.stringify(notes));
+}
+}
+
+// Update character and word counters
+function updateCounters() {
+const t = translations[currentLanguage];
+const content = noteContent.value;
+const characters = content.length;
+const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+
+charCount.innerHTML = `${characters} <span data-i18n="editor.characters">${t.editor.characters}</span>`;
+wordCount.innerHTML = `${words} <span data-i18n="editor.words">${t.editor.words}</span>`;
+}
+
+// Format date for display
+function formatDate(dateString) {
+const date = new Date(dateString);
+return date.toLocaleDateString(currentLanguage === 'cs' ? 'cs-CZ' : 'en-US', {
+month: 'short',
+day: 'numeric'
+});
+}
+
+// Text transformation functions
+function capitalizeSentences() {
+saveToHistory();
+const text = noteContent.value;
+const sentences = text.split(/(?<=[.!?])\s+/);
+const capitalized = sentences.map(sentence => {
+if (sentence.length > 0) {
+return sentence.charAt(0).toUpperCase() + sentence.slice(1).toLowerCase();
+}
+return sentence;
+}).join(' ');
+
+noteContent.value = capitalized;
+updateNoteContent();
+}
+
+function transformSelectedText(transformFn) {
+saveToHistory();
+const start = noteContent.selectionStart;
+const end = noteContent.selectionEnd;
+
+if (start === end) {
+noteContent.value = transformFn(noteContent.value);
+} else {
+const selectedText = noteContent.value.substring(start, end);
+const transformedText = transformFn(selectedText);
+noteContent.value = noteContent.value.substring(0, start) +
+transformedText +
+noteContent.value.substring(end);
+}
+
+updateNoteContent();
+}
+
+// Font size controls
+function updateFontSize() {
+noteContent.style.fontSize = `${fontSize}px`;
+fontSizeDisplay.textContent = `${fontSize}px`;
+localStorage.setItem('propiska_fontsize', fontSize.toString());
+}
+
+function decreaseFontSize() {
+if (fontSize > 12) {
+fontSize--;
+updateFontSize();
+}
+}
+
+function increaseFontSize() {
+if (fontSize < 24) {
+fontSize++;
+updateFontSize();
+}
+}
+
+// Export note as text file
+function exportNoteAsText() {
+if (!currentNoteId) return;
+
+const note = notes.find(n => n.id === currentNoteId);
+if (note) {
+const content = `${note.title}\n\n${note.content}`;
+const blob = new Blob([content], { type: 'text/plain' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `${note.title || 'note'}.txt`;
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+}
+}
+
+// Auto-save functionality
+function startAutoSave() {
+setInterval(() => {
+if (currentNoteId && autoSaveEnabled) {
+saveNotes();
+}
+}, 30000);
+}
+
+function toggleAutoSave() {
+autoSaveEnabled = autoSaveToggle.checked;
+localStorage.setItem('propiska_autosave', autoSaveEnabled.toString());
+}
+
+// Update note content in the data model
+function updateNoteContent() {
+if (currentNoteId) {
+const note = notes.find(n => n.id === currentNoteId);
+if (note) {
+note.content = noteContent.value;
+note.updatedAt = new Date().toISOString();
+saveNotes();
+renderNotesList();
+}
+}
+updateCounters();
+}
+
+// Clear all data
+function clearAllNotes() {
+const t = translations[currentLanguage];
+if (confirm(t.dialogs.clearAllConfirm)) {
+notes = [];
+localStorage.removeItem('propiska_notes');
+currentNoteId = null;
+noteTitle.value = '';
+noteContent.value = '';
+undoStack = [];
+redoStack = [];
+updateUndoRedoButtons();
+renderNotesList();
+updateCounters();
+}
+}
+
+// Toggle mobile notes panel
+function toggleMobileNotesPanel(show) {
+if (show === undefined) {
+notesSidebar.classList.toggle('show');
+notesSidebarOverlay.classList.toggle('show');
+} else if (show) {
+notesSidebar.classList.add('show');
+notesSidebarOverlay.classList.add('show');
+} else {
+notesSidebar.classList.remove('show');
+notesSidebarOverlay.classList.remove('show');
+}
+}
+
+// Event Listeners
+noteTitle.addEventListener('input', function() {
+if (currentNoteId) {
+const note = notes.find(n => n.id === currentNoteId);
+if (note) {
+note.title = this.value;
+note.updatedAt = new Date().toISOString();
+saveNotes();
+renderNotesList();
+}
+}
+});
+
+// Handle Enter key in title to move to content
+noteTitle.addEventListener('keydown', function(e) {
+if (e.key === 'Enter') {
+e.preventDefault();
+noteContent.focus();
+}
+});
+
+let contentChangeTimeout;
+noteContent.addEventListener('input', function() {
+// Debounce history saving
+clearTimeout(contentChangeTimeout);
+contentChangeTimeout = setTimeout(() => {
+saveToHistory();
+}, 1000);
+    
+updateNoteContent();
+});
+
+searchNotes.addEventListener('input', function() {
+const searchTerm = this.value.toLowerCase();
+if (searchTerm) {
+const filteredNotes = notes.filter(note =>
+note.title.toLowerCase().includes(searchTerm) ||
+note.content.toLowerCase().includes(searchTerm)
+);
+renderNotesList(filteredNotes);
+} else {
+renderNotesList();
+}
+});
+
+settingsBtn.addEventListener('click', function() {
+settingsPanel.classList.remove('hidden');
+setTimeout(() => {
+settingsPanel.querySelector('.absolute').classList.remove('translate-x-full');
+}, 10);
+});
+
+closeSettings.addEventListener('click', function() {
+settingsPanel.querySelector('.absolute').classList.add('translate-x-full');
+setTimeout(() => {
+settingsPanel.classList.add('hidden');
+}, 300);
+});
+
+newNoteBtn.addEventListener('click', createNewNote);
+mobileFab.addEventListener('click', createNewNote);
+
+// Text transformation buttons
+capitalizeBtn.addEventListener('click', capitalizeSentences);
+lowercaseBtn.addEventListener('click', () => transformSelectedText(text => text.toLowerCase()));
+uppercaseBtn.addEventListener('click', () => transformSelectedText(text => text.toUpperCase()));
+
+// Font size buttons
+decreaseFontBtn.addEventListener('click', decreaseFontSize);
+increaseFontBtn.addEventListener('click', increaseFontSize);
+
+// Undo/Redo buttons
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+// Action buttons
+exportTextBtn.addEventListener('click', exportNoteAsText);
+exportCurrentText.addEventListener('click', exportNoteAsText);
+exportAllNotes.addEventListener('click', exportAllNotesAsText);
+deleteNoteBtn.addEventListener('click', deleteCurrentNote);
+
+// Settings
+autoSaveToggle.addEventListener('change', toggleAutoSave);
+clearAllData.addEventListener('click', clearAllNotes);
+
+// Language button
+languageBtn.addEventListener('click', function() {
+languageModal.classList.remove('hidden');
+feather.replace();
+});
+
+closeLanguageModal.addEventListener('click', function() {
+languageModal.classList.add('hidden');
+});
+
+languageModal.addEventListener('click', function(e) {
+if (e.target === languageModal) {
+languageModal.classList.add('hidden');
+}
+});
+
+languageOptions.forEach(option => {
+option.addEventListener('click', function() {
+const lang = this.getAttribute('data-lang');
+translate(lang);
+setTimeout(() => {
+languageModal.classList.add('hidden');
+}, 300);
+});
+});
+
+// Mobile notes panel toggle
+toggleNotesPanel.addEventListener('click', function() {
+toggleMobileNotesPanel();
+});
+
+notesSidebarOverlay.addEventListener('click', function() {
+toggleMobileNotesPanel(false);
+});
+
+// Delete modal events
+cancelDelete.addEventListener('click', function() {
+deleteModal.classList.remove('show');
+pendingDeleteNoteId = null;
+});
+
+confirmDelete.addEventListener('click', function() {
+if (pendingDeleteNoteId) {
+const noteElement = document.querySelector(`.note-card[data-id="${pendingDeleteNoteId}"]`);
+deleteNoteWithAnimation(pendingDeleteNoteId, noteElement);
+deleteModal.classList.remove('show');
+pendingDeleteNoteId = null;
+}
+});
+
+deleteModal.addEventListener('click', function(e) {
+if (e.target === deleteModal) {
+deleteModal.classList.remove('show');
+pendingDeleteNoteId = null;
+}
+});
+
+// Initialize the app
+initApp();
+
 // Add some sample notes if empty
 if (notes.length === 1 && notes[0].id === 1) {
-    setTimeout(() => {
-        const sampleNotes = [
-            {
-                id: Date.now() + 1,
-                title: translations[currentLanguage].app.newNote + ' 1',
-                content: translations[currentLanguage].editor.contentPlaceholder,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            },
-            {
-                id: Date.now() + 2,
-                title: translations[currentLanguage].app.newNote + ' 2',
-                content: translations[currentLanguage].editor.contentPlaceholder,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }
-        ];
-        
-        notes.push(...sampleNotes);
-        saveNotes();
-        renderNotesList();
-    }, 1000);
+setTimeout(() => {
+const sampleNotes = [
+{
+id: Date.now() + 1,
+title: translations[currentLanguage].app.newNote + ' 1',
+content: translations[currentLanguage].editor.contentPlaceholder,
+createdAt: new Date().toISOString(),
+updatedAt: new Date().toISOString()
+},
+{
+id: Date.now() + 2,
+title: translations[currentLanguage].app.newNote + ' 2',
+content: translations[currentLanguage].editor.contentPlaceholder,
+createdAt: new Date().toISOString(),
+updatedAt: new Date().toISOString()
 }
-    </script>                <div class="space-y-6 flex-1 overflow-y-auto custom-scrollbar">
+];
 
-                </div>
+notes.push(...sampleNotes);
+saveNotes();
+renderNotesList();
+}, 1000);
+}
+
+</script>
 </body>
 </html>
